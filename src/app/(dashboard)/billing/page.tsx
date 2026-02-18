@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useSession } from "next-auth/react";
+import { useState, useEffect } from "react";
 import {
   Check,
   CreditCard,
@@ -72,9 +71,28 @@ const plans = [
 ];
 
 export default function BillingPage() {
-  const { data: session } = useSession();
-  const [currentPlan] = useState("FREE");
+  const [currentPlan, setCurrentPlan] = useState<string>("FREE");
+  const [periodEnd, setPeriodEnd] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<string | null>(null);
+  const [isFetching, setIsFetching] = useState(true);
+
+  useEffect(() => {
+    async function fetchSubscription() {
+      try {
+        const res = await fetch("/api/users/me");
+        if (res.ok) {
+          const data = await res.json();
+          setCurrentPlan(data.subscription?.plan || "FREE");
+          setPeriodEnd(data.subscription?.stripeCurrentPeriodEnd || null);
+        }
+      } catch (error) {
+        console.error("Failed to fetch subscription:", error);
+      } finally {
+        setIsFetching(false);
+      }
+    }
+    fetchSubscription();
+  }, []);
 
   const handleUpgrade = async (planId: string) => {
     setIsLoading(planId);
@@ -87,6 +105,8 @@ export default function BillingPage() {
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
+      } else if (data.error) {
+        alert(data.error);
       }
     } catch (error) {
       console.error("Error:", error);
@@ -102,6 +122,8 @@ export default function BillingPage() {
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
+      } else if (data.error) {
+        alert(data.error);
       }
     } catch (error) {
       console.error("Error:", error);
@@ -109,6 +131,14 @@ export default function BillingPage() {
       setIsLoading(null);
     }
   };
+
+  if (isFetching) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -132,6 +162,18 @@ export default function BillingPage() {
                 You are currently on the{" "}
                 <span className="text-primary font-medium">{currentPlan}</span>{" "}
                 plan.
+                {periodEnd && (
+                  <>
+                    {" "}
+                    Renews on{" "}
+                    {new Date(periodEnd).toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                    .
+                  </>
+                )}
               </CardDescription>
             </div>
             <Badge variant="secondary" className="text-primary">
@@ -139,22 +181,6 @@ export default function BillingPage() {
             </Badge>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Projects Used</p>
-              <p className="text-2xl font-bold">2 / 3</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Storage Used</p>
-              <p className="text-2xl font-bold">456 MB</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">API Calls</p>
-              <p className="text-2xl font-bold">1,234</p>
-            </div>
-          </div>
-        </CardContent>
         {currentPlan !== "FREE" && (
           <CardFooter>
             <Button
@@ -220,6 +246,25 @@ export default function BillingPage() {
                   <Button className="w-full" disabled>
                     Current Plan
                   </Button>
+                ) : plan.id === "FREE" ? (
+                  currentPlan !== "FREE" ? (
+                    <Button
+                      className="w-full gap-2"
+                      variant="outline"
+                      onClick={handleManageBilling}
+                      disabled={isLoading === "portal"}
+                    >
+                      {isLoading === "portal" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Manage in Billing Portal"
+                      )}
+                    </Button>
+                  ) : (
+                    <Button className="w-full" disabled>
+                      Current Plan
+                    </Button>
+                  )
                 ) : (
                   <Button
                     className="w-full gap-2"
@@ -231,7 +276,7 @@ export default function BillingPage() {
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <>
-                        {plan.price > 0 ? "Upgrade" : "Downgrade"}
+                        Upgrade
                         <ArrowRight className="h-4 w-4" />
                       </>
                     )}

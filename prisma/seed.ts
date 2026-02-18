@@ -4,6 +4,8 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
+  console.log("Seeding database...");
+
   // Create admin user
   const adminPassword = await bcrypt.hash("admin123456", 12);
   const admin = await prisma.user.upsert({
@@ -38,6 +40,23 @@ async function main() {
         },
       },
     },
+  });
+
+  // Seed initial activities
+  await prisma.activity.createMany({
+    data: [
+      {
+        userId: admin.id,
+        type: "USER_REGISTERED",
+        message: "New user registered",
+      },
+      {
+        userId: user.id,
+        type: "USER_REGISTERED",
+        message: "New user registered",
+      },
+    ],
+    skipDuplicates: true,
   });
 
   console.log("Seeded database with:");

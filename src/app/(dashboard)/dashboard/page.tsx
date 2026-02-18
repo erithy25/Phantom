@@ -1,12 +1,15 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   Users,
   DollarSign,
   CreditCard,
   Activity,
   ArrowUpRight,
+  ArrowDownRight,
   TrendingUp,
+  Loader2,
 } from "lucide-react";
 import {
   Card,
@@ -18,8 +21,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -29,126 +30,36 @@ import {
   Bar,
 } from "recharts";
 
-const revenueData = [
-  { month: "Jan", revenue: 4200 },
-  { month: "Feb", revenue: 4800 },
-  { month: "Mar", revenue: 5100 },
-  { month: "Apr", revenue: 4900 },
-  { month: "May", revenue: 6200 },
-  { month: "Jun", revenue: 7100 },
-  { month: "Jul", revenue: 7800 },
-  { month: "Aug", revenue: 8200 },
-  { month: "Sep", revenue: 8900 },
-  { month: "Oct", revenue: 9400 },
-  { month: "Nov", revenue: 10200 },
-  { month: "Dec", revenue: 11800 },
-];
+interface DashboardStats {
+  stats: {
+    totalUsers: number;
+    mrr: number;
+    totalPaidSubs: number;
+    newUsersThisMonth: number;
+    userGrowthPct: string;
+  };
+  userGrowthData: { month: string; users: number }[];
+  recentActivity: {
+    id: string;
+    user: string;
+    initials: string;
+    image: string | null;
+    action: string;
+    timestamp: string;
+  }[];
+}
 
-const userGrowthData = [
-  { month: "Jan", users: 120 },
-  { month: "Feb", users: 180 },
-  { month: "Mar", users: 240 },
-  { month: "Apr", users: 310 },
-  { month: "May", users: 420 },
-  { month: "Jun", users: 510 },
-  { month: "Jul", users: 620 },
-  { month: "Aug", users: 750 },
-  { month: "Sep", users: 890 },
-  { month: "Oct", users: 1050 },
-  { month: "Nov", users: 1180 },
-  { month: "Dec", users: 1340 },
-];
+function formatTimeAgo(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-const statsCards = [
-  {
-    title: "Total Users",
-    value: "2,847",
-    change: "+12.5%",
-    period: "from last month",
-    icon: Users,
-    iconBg: "bg-purple-500/20",
-    iconColor: "text-purple-400",
-  },
-  {
-    title: "Revenue",
-    value: "$45,231",
-    change: "+20.1%",
-    period: "from last month",
-    icon: DollarSign,
-    iconBg: "bg-emerald-500/20",
-    iconColor: "text-emerald-400",
-  },
-  {
-    title: "Subscriptions",
-    value: "1,234",
-    change: "+8.2%",
-    period: "from last month",
-    icon: CreditCard,
-    iconBg: "bg-blue-500/20",
-    iconColor: "text-blue-400",
-  },
-  {
-    title: "Active Now",
-    value: "573",
-    change: "+4.3%",
-    period: "from last hour",
-    icon: Activity,
-    iconBg: "bg-orange-500/20",
-    iconColor: "text-orange-400",
-  },
-];
-
-const recentActivity = [
-  {
-    id: 1,
-    user: "Sarah Chen",
-    initials: "SC",
-    action: "New user registered",
-    timestamp: "2 minutes ago",
-  },
-  {
-    id: 2,
-    user: "Alex Rivera",
-    initials: "AR",
-    action: "Subscription upgraded to Pro",
-    timestamp: "15 minutes ago",
-  },
-  {
-    id: 3,
-    user: "James Wilson",
-    initials: "JW",
-    action: "Payment received - $49.99",
-    timestamp: "1 hour ago",
-  },
-  {
-    id: 4,
-    user: "Emily Park",
-    initials: "EP",
-    action: "Support ticket resolved",
-    timestamp: "2 hours ago",
-  },
-  {
-    id: 5,
-    user: "Michael Lee",
-    initials: "ML",
-    action: "New project created",
-    timestamp: "3 hours ago",
-  },
-  {
-    id: 6,
-    user: "Olivia Brown",
-    initials: "OB",
-    action: "Subscription cancelled",
-    timestamp: "5 hours ago",
-  },
-  {
-    id: 7,
-    user: "David Kim",
-    initials: "DK",
-    action: "Invoice downloaded",
-    timestamp: "6 hours ago",
-  },
-];
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`;
+  return date.toLocaleDateString();
+}
 
 const CustomTooltip = ({
   active,
@@ -164,9 +75,7 @@ const CustomTooltip = ({
       <div className="glass rounded-lg px-3 py-2 border border-border/40">
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className="text-sm font-semibold text-foreground">
-          {typeof payload[0].value === "number" && payload[0].value > 1000
-            ? `$${payload[0].value.toLocaleString()}`
-            : payload[0].value.toLocaleString()}
+          {payload[0].value.toLocaleString()}
         </p>
       </div>
     );
@@ -175,13 +84,86 @@ const CustomTooltip = ({
 };
 
 export default function DashboardPage() {
+  const [data, setData] = useState<DashboardStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const res = await fetch("/api/dashboard/stats");
+        if (res.ok) {
+          const json = await res.json();
+          setData(json);
+        }
+      } catch (error) {
+        console.error("Failed to fetch dashboard stats:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchStats();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const stats = data?.stats;
+  const growthPositive = stats?.userGrowthPct?.startsWith("+");
+
+  const statsCards = [
+    {
+      title: "Total Users",
+      value: stats?.totalUsers?.toLocaleString() || "0",
+      change: stats?.userGrowthPct || "+0%",
+      period: "from last month",
+      icon: Users,
+      iconBg: "bg-purple-500/20",
+      iconColor: "text-purple-400",
+      positive: growthPositive,
+    },
+    {
+      title: "Monthly Revenue",
+      value: `$${(stats?.mrr || 0).toLocaleString()}`,
+      change: "",
+      period: "MRR",
+      icon: DollarSign,
+      iconBg: "bg-emerald-500/20",
+      iconColor: "text-emerald-400",
+      positive: true,
+    },
+    {
+      title: "Paid Subscriptions",
+      value: stats?.totalPaidSubs?.toLocaleString() || "0",
+      change: "",
+      period: "active",
+      icon: CreditCard,
+      iconBg: "bg-blue-500/20",
+      iconColor: "text-blue-400",
+      positive: true,
+    },
+    {
+      title: "New This Month",
+      value: stats?.newUsersThisMonth?.toLocaleString() || "0",
+      change: "",
+      period: "registrations",
+      icon: Activity,
+      iconBg: "bg-orange-500/20",
+      iconColor: "text-orange-400",
+      positive: true,
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground mt-1">
-          Welcome back! Here&apos;s an overview of your account.
+          Welcome back! Here&apos;s an overview of your platform.
         </p>
       </div>
 
@@ -202,13 +184,23 @@ export default function DashboardPage() {
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
               <div className="flex items-center gap-1 mt-1">
-                <Badge
-                  variant="secondary"
-                  className="bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border-0 px-1.5 py-0 text-xs font-medium"
-                >
-                  <ArrowUpRight className="h-3 w-3 mr-0.5" />
-                  {stat.change}
-                </Badge>
+                {stat.change && (
+                  <Badge
+                    variant="secondary"
+                    className={`${
+                      stat.positive
+                        ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                        : "bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                    } border-0 px-1.5 py-0 text-xs font-medium`}
+                  >
+                    {stat.positive ? (
+                      <ArrowUpRight className="h-3 w-3 mr-0.5" />
+                    ) : (
+                      <ArrowDownRight className="h-3 w-3 mr-0.5" />
+                    )}
+                    {stat.change}
+                  </Badge>
+                )}
                 <span className="text-xs text-muted-foreground">
                   {stat.period}
                 </span>
@@ -218,85 +210,31 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Charts Section */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Revenue Overview Chart */}
-        <Card className="glass border-border/40">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">Revenue Overview</CardTitle>
-                <CardDescription>Monthly revenue for this year</CardDescription>
-              </div>
+      {/* User Growth Chart */}
+      <Card className="glass border-border/40">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">User Growth</CardTitle>
+              <CardDescription>
+                New user registrations per month
+              </CardDescription>
+            </div>
+            {growthPositive && (
               <div className="flex items-center gap-1 text-emerald-400">
                 <TrendingUp className="h-4 w-4" />
-                <span className="text-sm font-medium">+24.5%</span>
+                <span className="text-sm font-medium">
+                  {stats?.userGrowthPct}
+                </span>
               </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] w-full">
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[300px] w-full">
+            {data?.userGrowthData && data.userGrowthData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={revenueData}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="hsl(var(--border))"
-                    opacity={0.3}
-                  />
-                  <XAxis
-                    dataKey="month"
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) => `$${value / 1000}k`}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Line
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="#a855f7"
-                    strokeWidth={2.5}
-                    dot={{ fill: "#a855f7", r: 4, strokeWidth: 0 }}
-                    activeDot={{
-                      r: 6,
-                      fill: "#a855f7",
-                      stroke: "#a855f7",
-                      strokeWidth: 2,
-                    }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* User Growth Chart */}
-        <Card className="glass border-border/40">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">User Growth</CardTitle>
-                <CardDescription>
-                  New user registrations per month
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-1 text-emerald-400">
-                <TrendingUp className="h-4 w-4" />
-                <span className="text-sm font-medium">+18.2%</span>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={userGrowthData}>
+                <BarChart data={data.userGrowthData}>
                   <CartesianGrid
                     strokeDasharray="3 3"
                     stroke="hsl(var(--border))"
@@ -324,10 +262,14 @@ export default function DashboardPage() {
                   />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                No data yet. User registrations will appear here.
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Recent Activity Section */}
       <Card className="glass border-border/40">
@@ -339,30 +281,37 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {recentActivity.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-4 rounded-lg p-3 transition-colors hover:bg-accent/50"
-              >
-                <Avatar className="h-9 w-9">
-                  <AvatarImage src="" alt={item.user} />
-                  <AvatarFallback className="bg-primary/20 text-primary text-xs">
-                    {item.initials}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium leading-none">
-                    {item.user}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {item.action}
-                  </p>
+            {data?.recentActivity && data.recentActivity.length > 0 ? (
+              data.recentActivity.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-4 rounded-lg p-3 transition-colors hover:bg-accent/50"
+                >
+                  <Avatar className="h-9 w-9">
+                    <AvatarImage src={item.image || ""} alt={item.user} />
+                    <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                      {item.initials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium leading-none">
+                      {item.user}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {item.action}
+                    </p>
+                  </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {formatTimeAgo(item.timestamp)}
+                  </span>
                 </div>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {item.timestamp}
-                </span>
+              ))
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                No activity yet. Events will appear here as users interact with
+                the platform.
               </div>
-            ))}
+            )}
           </div>
         </CardContent>
       </Card>

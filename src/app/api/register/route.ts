@@ -1,9 +1,20 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   try {
+    // Rate limit: 5 registrations per IP per hour
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const rl = checkRateLimit(`register:${ip}`, 5, 60 * 60 * 1000);
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "Too many registration attempts. Try again later." },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const { name, email, password } = body;
 
@@ -14,6 +25,9 @@ export async function POST(req: Request) {
       );
     }
 
+    // Normalize email
+    const normalizedEmail = email.toLowerCase().trim();
+
     if (password.length < 8) {
       return NextResponse.json(
         { error: "Password must be at least 8 characters" },
@@ -22,7 +36,7 @@ export async function POST(req: Request) {
     }
 
     const existingUser = await db.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
@@ -36,8 +50,8 @@ export async function POST(req: Request) {
 
     const user = await db.user.create({
       data: {
-        name,
-        email,
+        name: name?.trim() || null,
+        email: normalizedEmail,
         hashedPassword,
       },
     });
@@ -47,6 +61,15 @@ export async function POST(req: Request) {
       data: {
         userId: user.id,
         plan: "FREE",
+      },
+    });
+
+    // Log activity
+    await db.activity.create({
+      data: {
+        userId: user.id,
+        type: "USER_REGISTERED",
+        message: "New user registered",
       },
     });
 

@@ -18,7 +18,6 @@ export async function DELETE(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Prevent admin from deleting themselves
     if ((session.user as any).id === params.id) {
       return NextResponse.json(
         { error: "Cannot delete your own account from admin panel" },
@@ -26,8 +25,26 @@ export async function DELETE(
       );
     }
 
+    const target = await db.user.findUnique({
+      where: { id: params.id },
+      select: { name: true, email: true },
+    });
+
+    if (!target) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
     await db.user.delete({
       where: { id: params.id },
+    });
+
+    await db.activity.create({
+      data: {
+        userId: (session.user as any).id,
+        type: "USER_DELETED",
+        message: `Deleted user ${target.name || target.email}`,
+        metadata: { deletedUserId: params.id, deletedEmail: target.email },
+      },
     });
 
     return NextResponse.json({ success: true });
@@ -62,6 +79,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
     }
 
+    if ((session.user as any).id === params.id && role === "USER") {
+      return NextResponse.json(
+        { error: "Cannot remove your own admin role" },
+        { status: 400 }
+      );
+    }
+
     const user = await db.user.update({
       where: { id: params.id },
       data: { ...(role && { role }) },
@@ -70,6 +94,15 @@ export async function PATCH(
         name: true,
         email: true,
         role: true,
+      },
+    });
+
+    await db.activity.create({
+      data: {
+        userId: (session.user as any).id,
+        type: "ROLE_CHANGE",
+        message: `Changed role for ${user.name || user.email} to ${role}`,
+        metadata: { targetUserId: params.id, newRole: role },
       },
     });
 

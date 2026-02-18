@@ -11,6 +11,8 @@ import {
   EyeOff,
   Moon,
   Sun,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +32,10 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   // General settings
   const [language, setLanguage] = useState("en");
@@ -45,18 +51,56 @@ export default function SettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [twoFactor, setTwoFactor] = useState(false);
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword !== confirmPassword) return;
+    setPasswordMessage(null);
+
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage({ type: "error", text: "Passwords do not match" });
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordMessage({
+        type: "error",
+        text: "Password must be at least 8 characters",
+      });
+      return;
+    }
+
     setIsLoading(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    setIsLoading(false);
+    try {
+      const res = await fetch("/api/users/me/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setPasswordMessage({
+          type: "success",
+          text: "Password updated successfully",
+        });
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      } else {
+        setPasswordMessage({
+          type: "error",
+          text: data.error || "Failed to update password",
+        });
+      }
+    } catch {
+      setPasswordMessage({
+        type: "error",
+        text: "Something went wrong. Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -148,6 +192,23 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handlePasswordChange} className="space-y-4">
+                {passwordMessage && (
+                  <div
+                    className={`flex items-center gap-2 rounded-md p-3 text-sm ${
+                      passwordMessage.type === "success"
+                        ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
+                        : "bg-destructive/10 border border-destructive/20 text-destructive"
+                    }`}
+                  >
+                    {passwordMessage.type === "success" ? (
+                      <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                    )}
+                    {passwordMessage.text}
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="current-password">Current Password</Label>
                   <div className="relative">
@@ -157,6 +218,7 @@ export default function SettingsPage() {
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
                       className="bg-secondary/50 border-0 pr-10"
+                      required
                     />
                     <Button
                       type="button"
@@ -185,6 +247,8 @@ export default function SettingsPage() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       className="bg-secondary/50 border-0 pr-10"
+                      minLength={8}
+                      required
                     />
                     <Button
                       type="button"
@@ -210,6 +274,7 @@ export default function SettingsPage() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="bg-secondary/50 border-0"
+                    required
                   />
                   {newPassword &&
                     confirmPassword &&
@@ -229,30 +294,6 @@ export default function SettingsPage() {
                   Update Password
                 </Button>
               </form>
-            </CardContent>
-          </Card>
-
-          <Card className="glass">
-            <CardHeader>
-              <CardTitle>Two-Factor Authentication</CardTitle>
-              <CardDescription>
-                Add an extra layer of security to your account.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">
-                    {twoFactor ? "Enabled" : "Disabled"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {twoFactor
-                      ? "Your account is protected with 2FA."
-                      : "Enable 2FA for enhanced security."}
-                  </p>
-                </div>
-                <Switch checked={twoFactor} onCheckedChange={setTwoFactor} />
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
