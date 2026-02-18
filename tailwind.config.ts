@@ -10,65 +10,135 @@ const config: Config = {
   theme: {
     container: {
       center: true,
-      padding: "2rem",
+      padding: "1.5rem",
       screens: {
-        "2xl": "1400px",
+        "2xl": "1200px",
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["Outfit", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+        mono: ["JetBrains Mono", "monospace"],
+      },
       colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
+        phantom: {
+          bg: "var(--phantom-bg)",
+          bgSecondary: "var(--phantom-bg-secondary)",
+          bgTertiary: "var(--phantom-bg-tertiary)",
+          bgCard: "var(--phantom-bg-card)",
+          bgCardHover: "var(--phantom-bg-card-hover)",
+          bgInput: "var(--phantom-bg-input)",
+          border: "var(--phantom-border)",
+          borderHover: "var(--phantom-border-hover)",
+          text: "var(--phantom-text)",
+          textSecondary: "var(--phantom-text-secondary)",
+          textTertiary: "var(--phantom-text-tertiary)",
+          textMuted: "var(--phantom-text-muted)",
+          success: "var(--phantom-success)",
+          warning: "var(--phantom-warning)",
+          danger: "var(--phantom-danger)",
+          accentBg: "var(--phantom-accent-bg)",
         },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
+        border: "var(--phantom-border)",
+        input: "var(--phantom-bg-input)",
+        background: "var(--phantom-bg)",
+        foreground: "var(--phantom-text)",
+        card: {
+          DEFAULT: "var(--phantom-bg-card)",
+          foreground: "var(--phantom-text)",
         },
         muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
+          DEFAULT: "var(--phantom-bg-tertiary)",
+          foreground: "var(--phantom-text-tertiary)",
         },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
-        popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
-        },
-        card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
+        destructive: {
+          DEFAULT: "var(--phantom-danger)",
+          foreground: "#FAFAFA",
         },
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        lg: "12px",
+        md: "10px",
+        sm: "8px",
+        xs: "6px",
+      },
+      fontSize: {
+        "page-title": ["26px", { lineHeight: "1.2", fontWeight: "700", letterSpacing: "-0.03em" }],
+        "section-heading": ["22px", { lineHeight: "1.3", fontWeight: "700", letterSpacing: "-0.03em" }],
+        "card-title": ["15px", { lineHeight: "1.4", fontWeight: "600" }],
+        "body": ["13px", { lineHeight: "1.6", fontWeight: "400" }],
+        "label-mono": ["11px", { lineHeight: "1.4", fontWeight: "500", letterSpacing: "0.05em" }],
+        "caption": ["11px", { lineHeight: "1.4", fontWeight: "400" }],
+        "micro": ["10px", { lineHeight: "1.4", fontWeight: "400" }],
+        "large-metric": ["28px", { lineHeight: "1", fontWeight: "700", letterSpacing: "-0.03em" }],
+        "xl-metric": ["48px", { lineHeight: "1", fontWeight: "800", letterSpacing: "-0.03em" }],
       },
       keyframes: {
-        "accordion-down": {
-          from: { height: "0" },
-          to: { height: "var(--radix-accordion-content-height)" },
+        "fade-in": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
         },
-        "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" },
+        "scale-in": {
+          from: { opacity: "0", transform: "scale(0.95)" },
+          to: { opacity: "1", transform: "scale(1)" },
+        },
+        "slide-in-right": {
+          from: { transform: "translateX(100%)" },
+          to: { transform: "translateX(0)" },
+        },
+        "slide-out-right": {
+          from: { transform: "translateX(0)" },
+          to: { transform: "translateX(100%)" },
+        },
+        "breathing": {
+          "0%, 100%": { opacity: "0.7" },
+          "50%": { opacity: "1" },
+        },
+        "shimmer": {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
+        "shake": {
+          "0%, 100%": { transform: "translateX(0)" },
+          "25%": { transform: "translateX(-4px)" },
+          "75%": { transform: "translateX(4px)" },
+        },
+        "pulse-dot": {
+          "0%, 100%": { opacity: "0.5" },
+          "50%": { opacity: "1" },
+        },
+        "spring-in": {
+          "0%": { transform: "scale(0)" },
+          "70%": { transform: "scale(1.1)" },
+          "100%": { transform: "scale(1)" },
+        },
+        "typing-dot": {
+          "0%, 100%": { transform: "scale(0)" },
+          "50%": { transform: "scale(1)" },
+        },
+        "count-up": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
         },
       },
       animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
+        "fade-in": "fade-in 0.4s ease-out",
+        "scale-in": "scale-in 0.2s ease-out",
+        "slide-in-right": "slide-in-right 0.2s ease-out",
+        "slide-out-right": "slide-out-right 0.2s ease-out",
+        "breathing": "breathing 3s ease-in-out infinite",
+        "shimmer": "shimmer 1.5s linear infinite",
+        "shake": "shake 0.3s ease-in-out",
+        "pulse-dot": "pulse-dot 2s ease-in-out infinite",
+        "spring-in": "spring-in 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55)",
+        "typing-dot-1": "typing-dot 1.4s infinite 0s",
+        "typing-dot-2": "typing-dot 1.4s infinite 0.2s",
+        "typing-dot-3": "typing-dot 1.4s infinite 0.4s",
+      },
+      boxShadow: {
+        "phantom-sm": "0 1px 2px rgba(0,0,0,0.3)",
+        "phantom-md": "0 4px 12px rgba(0,0,0,0.3)",
+        "phantom-lg": "0 8px 24px rgba(0,0,0,0.4)",
       },
     },
   },

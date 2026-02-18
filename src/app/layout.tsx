@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/components/layout/auth-provider";
+import { ThemeProvider } from "@/components/layout/theme-provider";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Phantom - Modern SaaS Platform",
+  title: "PHANTOM — Because showing up is optional.",
   description:
-    "A modern, full-stack SaaS platform built with Next.js, TypeScript, and Tailwind CSS.",
+    "Phantom is an AI-powered student agent that attends class, writes drafts, tracks your GPA, and helps you graduate — all from the shadows.",
 };
 
 export default function RootLayout({
@@ -15,11 +15,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="font-sans antialiased">
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body className="min-h-screen bg-phantom-bg font-sans text-phantom-text antialiased">
         <AuthProvider>
-          {children}
-          <Toaster />
+          <ThemeProvider>{children}</ThemeProvider>
         </AuthProvider>
       </body>
     </html>

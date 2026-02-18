@@ -1,79 +1,90 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { signIn } from "next-auth/react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { z } from "zod";
-import { Mail, Lock, User, Github, Chrome, Loader2 } from "lucide-react";
+import { registerSchema } from "@/lib/validations";
+import { lookupUniversity } from "@/lib/universities";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-
-const registerSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  email: z.string().email("Please enter a valid email address"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters"),
-});
-
-type RegisterFormValues = z.infer<typeof registerSchema>;
+type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
+
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isGithubLoading, setIsGithubLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [universityName, setUniversityName] = useState<string | null>(null);
+  const [studentCount, setStudentCount] = useState<number | null>(null);
 
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
-  } = useForm<RegisterFormValues>({
+  } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      name: "",
       email: "",
-      password: "",
     },
   });
 
-  async function onSubmit(data: RegisterFormValues) {
+  const emailValue = watch("email");
+
+  // Auto-detect university from email
+  useEffect(() => {
+    if (emailValue && emailValue.includes("@")) {
+      const uni = lookupUniversity(emailValue);
+      if (uni) {
+        setUniversityName(uni.name);
+        // Fetch student count for this university
+        fetchStudentCount(uni.domain);
+      } else {
+        setUniversityName(null);
+        setStudentCount(null);
+      }
+    } else {
+      setUniversityName(null);
+      setStudentCount(null);
+    }
+  }, [emailValue]);
+
+  async function fetchStudentCount(domain: string) {
+    try {
+      const res = await fetch(
+        `/api/campus/student-count?domain=${encodeURIComponent(domain)}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setStudentCount(data.count ?? null);
+      }
+    } catch {
+      // Non-critical, silently fail
+    }
+  }
+
+  async function onSubmit(data: RegisterFormData) {
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/register", {
+      const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ email: data.email.toLowerCase() }),
       });
 
-      if (!response.ok) {
-        const body = await response.json();
-        setError(body.message || "Something went wrong");
+      const result = await res.json();
+
+      if (!res.ok) {
+        setError(result.error || "Something went wrong. Please try again.");
         return;
       }
 
-      // Auto sign-in after successful registration
-      const result = await signIn("credentials", {
-        email: data.email,
-        password: data.password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError("Account created but could not sign in. Please try logging in.");
-        return;
-      }
-
-      router.push("/dashboard");
-      router.refresh();
+      // Navigate to verify page with email
+      router.push(`/verify?email=${encodeURIComponent(data.email.toLowerCase())}`);
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -82,144 +93,122 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="space-y-2 text-center">
-        <h1 className="text-2xl font-bold tracking-tight">Create an account</h1>
-        <p className="text-sm text-muted-foreground">
-          Get started with Phantom
-        </p>
+    <div className="flex min-h-[80vh] flex-col items-center justify-center">
+      {/* Wordmark with breathing animation */}
+      <div className="animate-breathing text-center">
+        <h1 className="font-sans text-[42px] font-extrabold uppercase tracking-[0.2em] text-phantom-text">
+          PHANTOM
+        </h1>
       </div>
 
-      {/* Error message */}
-      {error && (
-        <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
+      {/* Tagline */}
+      <p className="mt-3 text-center text-[15px] italic text-phantom-textTertiary">
+        Because showing up is optional.
+      </p>
 
-      {/* Registration form */}
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">Name</Label>
-          <div className="relative">
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="name"
-              type="text"
-              placeholder="Your name"
-              className="pl-10 bg-background/50"
-              disabled={isLoading}
-              {...register("name")}
-            />
+      {/* Email input form */}
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="mt-10 w-full max-w-sm animate-fade-in"
+      >
+        {/* Error */}
+        {error && (
+          <div className="mb-4 rounded-lg border border-phantom-danger/30 bg-phantom-danger/10 px-4 py-3 text-body text-phantom-danger">
+            {error}
           </div>
-          {errors.name && (
-            <p className="text-xs text-destructive">{errors.name.message}</p>
-          )}
+        )}
+
+        <div className="relative">
+          <input
+            type="email"
+            autoComplete="email"
+            placeholder="Enter your .edu email"
+            disabled={isLoading}
+            className="h-[48px] w-full rounded-[12px] border border-phantom-border bg-phantom-bgInput pl-4 pr-12 text-body text-phantom-text placeholder:text-phantom-textMuted focus:border-phantom-borderHover focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            {...register("email")}
+          />
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-[8px] bg-white text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Submit email"
+          >
+            {isLoading ? (
+              <svg
+                className="h-4 w-4 animate-spin"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
+              </svg>
+            ) : (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M3.333 8h9.334M8.667 4l4 4-4 4"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+          </button>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="email"
-              type="email"
-              placeholder="name@example.com"
-              className="pl-10 bg-background/50"
-              disabled={isLoading}
-              {...register("email")}
-            />
-          </div>
-          {errors.email && (
-            <p className="text-xs text-destructive">{errors.email.message}</p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="password"
-              type="password"
-              placeholder="Min. 8 characters"
-              className="pl-10 bg-background/50"
-              disabled={isLoading}
-              {...register("password")}
-            />
-          </div>
-          {errors.password && (
-            <p className="text-xs text-destructive">
-              {errors.password.message}
-            </p>
-          )}
-        </div>
-
-        <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Create Account
-        </Button>
+        {errors.email && (
+          <p className="mt-2 text-caption text-phantom-danger">
+            {errors.email.message}
+          </p>
+        )}
       </form>
 
-      {/* Divider */}
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-white/10" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-transparent px-2 text-muted-foreground">
-            or continue with
-          </span>
-        </div>
-      </div>
-
-      {/* OAuth buttons */}
-      <div className="grid grid-cols-2 gap-3">
-        <Button
-          variant="outline"
-          className="bg-background/50"
-          disabled={isGoogleLoading}
-          onClick={() => {
-            setIsGoogleLoading(true);
-            signIn("google", { callbackUrl: "/dashboard" });
-          }}
-        >
-          {isGoogleLoading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Chrome className="mr-2 h-4 w-4" />
-          )}
-          Google
-        </Button>
-        <Button
-          variant="outline"
-          className="bg-background/50"
-          disabled={isGithubLoading}
-          onClick={() => {
-            setIsGithubLoading(true);
-            signIn("github", { callbackUrl: "/dashboard" });
-          }}
-        >
-          {isGithubLoading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Github className="mr-2 h-4 w-4" />
-          )}
-          GitHub
-        </Button>
-      </div>
-
-      {/* Login link */}
-      <p className="text-center text-sm text-muted-foreground">
+      {/* Already have an account */}
+      <p className="mt-6 text-center text-body text-phantom-textTertiary">
         Already have an account?{" "}
         <Link
           href="/login"
-          className="text-primary underline-offset-4 hover:underline font-medium"
+          className="text-phantom-text transition-colors hover:text-white"
         >
-          Sign in
+          Log in
         </Link>
       </p>
+
+      {/* Student counter */}
+      {universityName && studentCount !== null && studentCount > 0 && (
+        <div className="mt-12 animate-fade-in text-center text-caption text-phantom-textMuted">
+          Join{" "}
+          <span className="text-phantom-textSecondary">
+            {studentCount.toLocaleString()}
+          </span>{" "}
+          students already using Phantom at{" "}
+          <span className="text-phantom-textSecondary">{universityName}</span>
+        </div>
+      )}
+
+      {universityName && studentCount === null && (
+        <div className="mt-12 animate-fade-in text-center text-caption text-phantom-textMuted">
+          Be the first Phantom at{" "}
+          <span className="text-phantom-textSecondary">{universityName}</span>
+        </div>
+      )}
     </div>
   );
 }
