@@ -1,11 +1,43 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { motion } from "framer-motion";
-import { User, Palette, Bell, Link2, Sparkles, Shield, Loader2, Sun, Moon, Save, Trash2, Download } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  User,
+  Palette,
+  Bell,
+  Link2,
+  Sparkles,
+  Shield,
+  Sun,
+  Moon,
+  Save,
+  Trash2,
+  Download,
+  Camera,
+  X,
+  Key,
+  Monitor,
+  LogOut,
+  Plus,
+  RefreshCw,
+  ExternalLink,
+  Clock,
+  AlertTriangle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { useThemeStore } from "@/store";
+import type { UserSettings } from "@/types";
+
+/* -------------------------------------------------------------------------- */
+/*  Tab Definitions                                                            */
+/* -------------------------------------------------------------------------- */
 
 const TABS = [
   { id: "account", label: "Account", icon: User },
@@ -14,76 +46,292 @@ const TABS = [
   { id: "lms", label: "LMS Connections", icon: Link2 },
   { id: "ai", label: "AI Preferences", icon: Sparkles },
   { id: "privacy", label: "Privacy", icon: Shield },
-];
+] as const;
 
-interface Settings {
-  theme: string;
-  language: string;
-  writingTone: string;
-  draftAutonomy: string;
-  gpaAdvisorLevel: string;
-  notificationAlerts: boolean;
-  notificationDrafts: boolean;
-  notificationInsights: boolean;
-  notificationLectures: boolean;
-  notificationSocial: boolean;
-  pushAlerts: boolean;
-  pushDrafts: boolean;
-  pushInsights: boolean;
-  pushSocial: boolean;
-  doNotDisturb: boolean;
-  examMode: boolean;
-  campusPulseOptIn: boolean;
-  leaderboardOptIn: boolean;
-  aiTrainingOptIn: boolean;
-}
+type TabId = (typeof TABS)[number]["id"];
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+/* -------------------------------------------------------------------------- */
+/*  Section Wrapper                                                            */
+/* -------------------------------------------------------------------------- */
+
+function SettingsSection({
+  title,
+  description,
+  children,
+  className,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="flex items-center justify-between py-2">
-      <span className="text-body text-phantom-textSecondary">{label}</span>
-      <button
-        onClick={() => onChange(!checked)}
-        className={cn(
-          "w-10 h-[22px] rounded-full transition-colors relative",
-          checked ? "bg-phantom-text" : "bg-phantom-border"
+    <div className={cn("space-y-4", className)}>
+      <div>
+        <h3 className="text-card-title text-phantom-text">{title}</h3>
+        {description && (
+          <p className="text-caption text-phantom-textTertiary mt-0.5">
+            {description}
+          </p>
         )}
-      >
-        <div
-          className={cn(
-            "absolute top-[2px] w-[18px] h-[18px] rounded-full bg-phantom-bg transition-transform",
-            checked ? "left-[20px]" : "left-[2px]"
-          )}
-        />
-      </button>
+      </div>
+      {children}
     </div>
   );
 }
 
-function SelectOption({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
+/* -------------------------------------------------------------------------- */
+/*  Toggle Row                                                                 */
+/* -------------------------------------------------------------------------- */
+
+function ToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
   return (
-    <div className="flex items-center justify-between py-2">
-      <span className="text-body text-phantom-textSecondary">{label}</span>
+    <div className="flex items-center justify-between py-2.5 gap-4">
+      <div className="min-w-0">
+        <span className="text-body text-phantom-textSecondary block">
+          {label}
+        </span>
+        {description && (
+          <span className="text-caption text-phantom-textMuted block mt-0.5">
+            {description}
+          </span>
+        )}
+      </div>
+      <ToggleSwitch
+        checked={checked}
+        onCheckedChange={onChange}
+      />
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Select Row                                                                 */
+/* -------------------------------------------------------------------------- */
+
+function SelectRow({
+  label,
+  description,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between py-2.5 gap-4">
+      <div className="min-w-0">
+        <span className="text-body text-phantom-textSecondary block">
+          {label}
+        </span>
+        {description && (
+          <span className="text-caption text-phantom-textMuted block mt-0.5">
+            {description}
+          </span>
+        )}
+      </div>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-phantom-bgInput border border-phantom-border rounded-sm px-3 py-1.5 text-body text-phantom-text focus:outline-none focus:border-phantom-borderHover"
+        className={cn(
+          "bg-phantom-bgInput border border-phantom-border rounded-sm",
+          "px-3 py-1.5 text-body text-phantom-text",
+          "focus:outline-none focus:border-phantom-borderHover",
+          "cursor-pointer min-w-[160px]"
+        )}
       >
         {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
         ))}
       </select>
     </div>
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Divider                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function Divider() {
+  return <div className="border-t border-phantom-border my-6" />;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  LMS Connection Card                                                        */
+/* -------------------------------------------------------------------------- */
+
+interface LmsConnection {
+  id: string;
+  name: string;
+  status: "connected" | "syncing" | "error";
+  lastSync: string;
+}
+
+function LmsConnectionCard({ connection }: { connection: LmsConnection }) {
+  const statusConfig = {
+    connected: { color: "bg-phantom-success", label: "Connected" },
+    syncing: { color: "bg-phantom-warning", label: "Syncing" },
+    error: { color: "bg-phantom-danger", label: "Error" },
+  };
+  const status = statusConfig[connection.status];
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 p-3 rounded-lg",
+        "border border-phantom-border bg-phantom-bgTertiary/30"
+      )}
+    >
+      <div className="w-10 h-10 rounded-md bg-phantom-accentBg border border-phantom-border flex items-center justify-center shrink-0">
+        <span className="text-phantom-text font-bold text-body">
+          {connection.name[0]}
+        </span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-body text-phantom-text">{connection.name}</p>
+        <p className="text-caption text-phantom-textTertiary">
+          Last synced: {connection.lastSync}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className={cn("w-2 h-2 rounded-full", status.color)} />
+        <Badge
+          variant={
+            connection.status === "connected"
+              ? "success"
+              : connection.status === "error"
+                ? "danger"
+                : "warning"
+          }
+          className="text-[10px]"
+        >
+          {status.label}
+        </Badge>
+      </div>
+      <Button variant="ghost" size="sm">
+        <RefreshCw className="w-3.5 h-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Delete Confirmation                                                        */
+/* -------------------------------------------------------------------------- */
+
+function DeleteConfirmation({
+  isOpen,
+  onClose,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const [confirmText, setConfirmText] = useState("");
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              "w-full max-w-md p-6 rounded-[16px]",
+              "border border-phantom-border bg-phantom-bgCard",
+              "shadow-phantom-lg"
+            )}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-phantom-danger/10 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-phantom-danger" />
+              </div>
+              <div>
+                <h3 className="text-card-title text-phantom-text">
+                  Delete Account
+                </h3>
+                <p className="text-caption text-phantom-textTertiary">
+                  This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-body text-phantom-textSecondary mb-4">
+              All your data including courses, drafts, lecture transcripts, and
+              AI conversations will be permanently deleted. Type{" "}
+              <span className="font-mono text-phantom-danger font-medium">
+                DELETE
+              </span>{" "}
+              to confirm.
+            </p>
+
+            <Input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder='Type "DELETE" to confirm'
+              className="mb-4"
+            />
+
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={confirmText !== "DELETE"}
+                onClick={onConfirm}
+                className="bg-phantom-danger text-white hover:opacity-90"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete Account
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Page                                                                       */
+/* -------------------------------------------------------------------------- */
+
 export default function SettingsPage() {
   const { data: session } = useSession();
-  const { theme, toggleTheme } = useThemeStore();
-  const [activeTab, setActiveTab] = useState("account");
+  const { theme, setTheme, toggleTheme } = useThemeStore();
+  const [activeTab, setActiveTab] = useState<TabId>("account");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [settings, setSettings] = useState<Settings>({
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const [settings, setSettings] = useState<UserSettings>({
     theme: "dark",
     language: "en",
     writingTone: "BALANCED",
@@ -98,6 +346,8 @@ export default function SettingsPage() {
     pushDrafts: true,
     pushInsights: false,
     pushSocial: false,
+    quietHoursStart: null,
+    quietHoursEnd: null,
     doNotDisturb: false,
     examMode: false,
     campusPulseOptIn: true,
@@ -105,21 +355,57 @@ export default function SettingsPage() {
     aiTrainingOptIn: false,
   });
 
+  // Profile state
+  const [name, setName] = useState("");
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+
+  // LMS state
+  const [lmsConnections, setLmsConnections] = useState<LmsConnection[]>([
+    {
+      id: "1",
+      name: "Canvas",
+      status: "connected",
+      lastSync: "just now",
+    },
+  ]);
+
+  // Fetch settings
   useEffect(() => {
-    fetch("/api/notifications/preferences")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.settings) setSettings((prev) => ({ ...prev, ...data.settings }));
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    async function fetchSettings() {
+      try {
+        const res = await fetch("/api/notifications/preferences");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.settings) {
+            setSettings((prev) => ({ ...prev, ...data.settings }));
+          }
+        }
+      } catch {
+        // Use defaults
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchSettings();
   }, []);
 
-  const updateSetting = (key: string, value: boolean | string) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
-  };
+  useEffect(() => {
+    if (session?.user) {
+      setName(session.user.name || "");
+      setProfileImage(session.user.image || null);
+    }
+  }, [session]);
 
-  const saveSettings = async () => {
+  // Update setting
+  const updateSetting = useCallback(
+    <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => {
+      setSettings((prev) => ({ ...prev, [key]: value }));
+    },
+    []
+  );
+
+  // Save all settings
+  const saveSettings = useCallback(async () => {
     setSaving(true);
     try {
       await fetch("/api/notifications/preferences", {
@@ -127,263 +413,670 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings),
       });
-    } catch {
-      // handle error
+    } catch (err) {
+      console.error("Failed to save settings:", err);
     } finally {
       setSaving(false);
     }
-  };
+  }, [settings]);
+
+  // Export data
+  const handleExport = useCallback(async () => {
+    try {
+      const res = await fetch("/api/user/export");
+      if (res.ok) {
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "phantom-data-export.json";
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error("Export failed:", err);
+    }
+  }, []);
+
+  // Delete account
+  const handleDeleteAccount = useCallback(async () => {
+    try {
+      await fetch("/api/user", { method: "DELETE" });
+      window.location.href = "/";
+    } catch (err) {
+      console.error("Delete failed:", err);
+    }
+  }, []);
+
+  // Photo upload
+  const handlePhotoUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => setProfileImage(reader.result as string);
+      reader.readAsDataURL(file);
+    },
+    []
+  );
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-5 h-5 animate-spin text-phantom-textMuted" />
+      <div className="max-w-4xl mx-auto px-6 py-8">
+        <Skeleton className="h-8 w-32 mb-6" />
+        <div className="flex flex-col md:flex-row gap-6">
+          <div className="md:w-48 space-y-2">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Skeleton key={i} className="h-9 w-full rounded-sm" />
+            ))}
+          </div>
+          <div className="flex-1 space-y-4">
+            <Skeleton className="h-64 w-full rounded-lg" />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="animate-fade-in">
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-4xl mx-auto px-6 py-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
         <h1 className="text-page-title text-phantom-text">Settings</h1>
-        <button
-          onClick={saveSettings}
-          disabled={saving}
-          className="h-9 px-4 bg-phantom-text text-phantom-bg rounded-sm text-body font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
-        >
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-          Save
-        </button>
+        <Button variant="primary" size="sm" onClick={saveSettings} disabled={saving}>
+          {saving ? (
+            <>
+              <span className="inline-block w-3 h-3 border-2 border-phantom-bg/30 border-t-phantom-bg rounded-full animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="w-3.5 h-3.5" />
+              Save Changes
+            </>
+          )}
+        </Button>
       </div>
 
       <div className="flex flex-col md:flex-row gap-6">
         {/* Tab Navigation */}
-        <div className="md:w-48 flex md:flex-col gap-1 overflow-x-auto pb-2 md:pb-0">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-sm text-body whitespace-nowrap transition-colors",
-                activeTab === tab.id
-                  ? "bg-phantom-accentBg text-phantom-text font-medium"
-                  : "text-phantom-textTertiary hover:text-phantom-textSecondary hover:bg-phantom-accentBg"
-              )}
-            >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <nav className="md:w-48 shrink-0">
+          <div className="flex md:flex-col gap-1 overflow-x-auto pb-2 md:pb-0 md:sticky md:top-20">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-sm",
+                  "text-body whitespace-nowrap",
+                  "transition-all duration-200",
+                  activeTab === tab.id
+                    ? "bg-phantom-accentBg text-phantom-text font-medium"
+                    : "text-phantom-textTertiary hover:text-phantom-textSecondary hover:bg-phantom-accentBg"
+                )}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </nav>
 
         {/* Tab Content */}
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex-1"
-        >
-          <div className="p-5 border border-phantom-border rounded-lg bg-phantom-bgCard">
-            {/* Account */}
-            {activeTab === "account" && (
-              <div className="space-y-6">
+        <div className="flex-1 min-w-0">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <div
+              className={cn(
+                "rounded-lg border border-phantom-border",
+                "bg-phantom-bgCard p-6"
+              )}
+            >
+              {/* ---------------------------------------------------------- */}
+              {/*  Account Tab                                                */}
+              {/* ---------------------------------------------------------- */}
+              {activeTab === "account" && (
                 <div>
-                  <h2 className="text-card-title text-phantom-text mb-4">Profile</h2>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-caption text-phantom-textTertiary mb-1 block">Name</label>
-                      <input
-                        type="text"
-                        defaultValue={session?.user?.name || ""}
-                        className="w-full h-11 bg-phantom-bgInput border border-phantom-border rounded-md px-4 text-body text-phantom-text focus:border-phantom-borderHover focus:outline-none"
+                  <SettingsSection title="Profile">
+                    {/* Photo */}
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="relative">
+                        <div
+                          className={cn(
+                            "w-16 h-16 rounded-full overflow-hidden",
+                            "bg-phantom-accentBg border border-phantom-border",
+                            "flex items-center justify-center"
+                          )}
+                        >
+                          {profileImage ? (
+                            <img
+                              src={profileImage}
+                              alt="Profile"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <User className="w-6 h-6 text-phantom-textMuted" />
+                          )}
+                        </div>
+                        <label
+                          className={cn(
+                            "absolute -bottom-1 -right-1",
+                            "w-6 h-6 rounded-full",
+                            "bg-phantom-text text-phantom-bg",
+                            "flex items-center justify-center cursor-pointer",
+                            "hover:opacity-90 transition-opacity"
+                          )}
+                        >
+                          <Camera className="w-3 h-3" />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handlePhotoUpload}
+                          />
+                        </label>
+                      </div>
+                      <div>
+                        <p className="text-body text-phantom-text font-medium">
+                          {name || "Student"}
+                        </p>
+                        <p className="text-caption text-phantom-textMuted">
+                          {session?.user?.email}
+                        </p>
+                        {profileImage && (
+                          <button
+                            onClick={() => setProfileImage(null)}
+                            className="text-caption text-phantom-danger hover:underline mt-1"
+                          >
+                            Remove photo
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Name */}
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-label-mono text-phantom-textMuted block mb-1.5 uppercase">
+                          Name
+                        </label>
+                        <Input
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          className="max-w-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-label-mono text-phantom-textMuted block mb-1.5 uppercase">
+                          Email
+                        </label>
+                        <Input
+                          value={session?.user?.email || ""}
+                          disabled
+                          className="max-w-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-label-mono text-phantom-textMuted block mb-1.5 uppercase">
+                          University
+                        </label>
+                        <Input
+                          value={session?.user?.universityId || "Not set"}
+                          disabled
+                          className="max-w-sm"
+                        />
+                      </div>
+                    </div>
+                  </SettingsSection>
+
+                  <Divider />
+
+                  <SettingsSection title="Security">
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="default" size="sm">
+                        <Key className="w-3.5 h-3.5" />
+                        Change Password
+                      </Button>
+                      <Button variant="default" size="sm">
+                        <Monitor className="w-3.5 h-3.5" />
+                        Manage Sessions
+                      </Button>
+                    </div>
+                  </SettingsSection>
+
+                  <Divider />
+
+                  <SettingsSection title="Data">
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="default" size="sm" onClick={handleExport}>
+                        <Download className="w-3.5 h-3.5" />
+                        Export Data (JSON)
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="border-phantom-danger/50 text-phantom-danger hover:bg-phantom-danger/10"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete Account
+                      </Button>
+                    </div>
+                  </SettingsSection>
+                </div>
+              )}
+
+              {/* ---------------------------------------------------------- */}
+              {/*  Appearance Tab                                              */}
+              {/* ---------------------------------------------------------- */}
+              {activeTab === "appearance" && (
+                <div>
+                  <SettingsSection
+                    title="Theme"
+                    description="Choose how Phantom looks to you."
+                  >
+                    <div className="grid grid-cols-2 gap-3 max-w-sm">
+                      {/* Dark */}
+                      <button
+                        onClick={() => {
+                          setTheme("dark");
+                          updateSetting("theme", "dark");
+                        }}
+                        className={cn(
+                          "flex flex-col items-center gap-3 p-4 rounded-lg",
+                          "border transition-all duration-200",
+                          theme === "dark"
+                            ? "border-phantom-text bg-phantom-accentBg"
+                            : "border-phantom-border hover:border-phantom-borderHover"
+                        )}
+                      >
+                        {/* Preview */}
+                        <div
+                          className={cn(
+                            "w-full h-20 rounded-md overflow-hidden",
+                            "border border-phantom-border"
+                          )}
+                        >
+                          <div className="h-4 bg-[#111113] border-b border-[#27272A]" />
+                          <div className="h-full bg-[#09090B] p-2 space-y-1">
+                            <div className="h-1.5 w-3/4 rounded bg-[#27272A]" />
+                            <div className="h-1.5 w-1/2 rounded bg-[#27272A]" />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Moon className="w-4 h-4 text-phantom-text" />
+                          <span className="text-body text-phantom-text font-medium">
+                            Dark
+                          </span>
+                        </div>
+                      </button>
+
+                      {/* Light */}
+                      <button
+                        onClick={() => {
+                          setTheme("light");
+                          updateSetting("theme", "light");
+                        }}
+                        className={cn(
+                          "flex flex-col items-center gap-3 p-4 rounded-lg",
+                          "border transition-all duration-200",
+                          theme === "light"
+                            ? "border-phantom-text bg-phantom-accentBg"
+                            : "border-phantom-border hover:border-phantom-borderHover"
+                        )}
+                      >
+                        {/* Preview */}
+                        <div
+                          className={cn(
+                            "w-full h-20 rounded-md overflow-hidden",
+                            "border border-phantom-border"
+                          )}
+                        >
+                          <div className="h-4 bg-[#F4F4F5] border-b border-[#E4E4E7]" />
+                          <div className="h-full bg-[#FAFAFA] p-2 space-y-1">
+                            <div className="h-1.5 w-3/4 rounded bg-[#E4E4E7]" />
+                            <div className="h-1.5 w-1/2 rounded bg-[#E4E4E7]" />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Sun className="w-4 h-4 text-phantom-text" />
+                          <span className="text-body text-phantom-text font-medium">
+                            Light
+                          </span>
+                        </div>
+                      </button>
+                    </div>
+                  </SettingsSection>
+                </div>
+              )}
+
+              {/* ---------------------------------------------------------- */}
+              {/*  Notifications Tab                                           */}
+              {/* ---------------------------------------------------------- */}
+              {activeTab === "notifications" && (
+                <div>
+                  <SettingsSection
+                    title="In-App Notifications"
+                    description="Control which notifications appear in your feed."
+                  >
+                    <div className="divide-y divide-phantom-border/50">
+                      <ToggleRow
+                        label="Alerts"
+                        description="Exam changes, deadline updates, urgent notices"
+                        checked={settings.notificationAlerts}
+                        onChange={(v) => updateSetting("notificationAlerts", v)}
+                      />
+                      <ToggleRow
+                        label="Draft Updates"
+                        description="Draft generation complete, review ready"
+                        checked={settings.notificationDrafts}
+                        onChange={(v) => updateSetting("notificationDrafts", v)}
+                      />
+                      <ToggleRow
+                        label="AI Insights"
+                        description="Grade predictions, study recommendations"
+                        checked={settings.notificationInsights}
+                        onChange={(v) =>
+                          updateSetting("notificationInsights", v)
+                        }
+                      />
+                      <ToggleRow
+                        label="Lecture Notifications"
+                        description="Transcript ready, flashcards generated"
+                        checked={settings.notificationLectures}
+                        onChange={(v) =>
+                          updateSetting("notificationLectures", v)
+                        }
+                      />
+                      <ToggleRow
+                        label="Social / Campus Pulse"
+                        description="Leaderboard updates, campus milestones"
+                        checked={settings.notificationSocial}
+                        onChange={(v) => updateSetting("notificationSocial", v)}
                       />
                     </div>
-                    <div>
-                      <label className="text-caption text-phantom-textTertiary mb-1 block">Email</label>
-                      <input
-                        type="email"
-                        value={session?.user?.email || ""}
-                        disabled
-                        className="w-full h-11 bg-phantom-bgInput border border-phantom-border rounded-md px-4 text-body text-phantom-textMuted cursor-not-allowed"
+                  </SettingsSection>
+
+                  <Divider />
+
+                  <SettingsSection
+                    title="Push Notifications"
+                    description="Receive notifications on your device."
+                  >
+                    <div className="divide-y divide-phantom-border/50">
+                      <ToggleRow
+                        label="Push Alerts"
+                        checked={settings.pushAlerts}
+                        onChange={(v) => updateSetting("pushAlerts", v)}
+                      />
+                      <ToggleRow
+                        label="Push for Drafts"
+                        checked={settings.pushDrafts}
+                        onChange={(v) => updateSetting("pushDrafts", v)}
+                      />
+                      <ToggleRow
+                        label="Push for Insights"
+                        checked={settings.pushInsights}
+                        onChange={(v) => updateSetting("pushInsights", v)}
+                      />
+                      <ToggleRow
+                        label="Push for Social"
+                        checked={settings.pushSocial}
+                        onChange={(v) => updateSetting("pushSocial", v)}
                       />
                     </div>
-                  </div>
-                </div>
+                  </SettingsSection>
 
-                <div className="border-t border-phantom-border pt-6">
-                  <h2 className="text-card-title text-phantom-text mb-4">Security</h2>
-                  <button className="h-9 px-4 border border-phantom-border rounded-sm text-body text-phantom-textSecondary hover:border-phantom-borderHover transition-colors">
-                    Change Password
-                  </button>
-                </div>
+                  <Divider />
 
-                <div className="border-t border-phantom-border pt-6">
-                  <h2 className="text-card-title text-phantom-text mb-4">Data</h2>
-                  <div className="flex gap-3">
-                    <button className="h-9 px-4 border border-phantom-border rounded-sm text-body text-phantom-textSecondary hover:border-phantom-borderHover transition-colors flex items-center gap-2">
-                      <Download className="w-3.5 h-3.5" />
-                      Export Data
-                    </button>
-                    <button className="h-9 px-4 border border-phantom-danger/50 rounded-sm text-body text-phantom-danger hover:bg-phantom-danger/10 transition-colors flex items-center gap-2">
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Delete Account
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Appearance */}
-            {activeTab === "appearance" && (
-              <div>
-                <h2 className="text-card-title text-phantom-text mb-4">Theme</h2>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => { if (theme !== "dark") toggleTheme(); }}
-                    className={cn(
-                      "flex-1 p-4 rounded-lg border transition-all flex flex-col items-center gap-2",
-                      theme === "dark" ? "border-phantom-text bg-phantom-accentBg" : "border-phantom-border hover:border-phantom-borderHover"
-                    )}
-                  >
-                    <Moon className="w-5 h-5 text-phantom-text" />
-                    <span className="text-body text-phantom-text">Dark</span>
-                  </button>
-                  <button
-                    onClick={() => { if (theme !== "light") toggleTheme(); }}
-                    className={cn(
-                      "flex-1 p-4 rounded-lg border transition-all flex flex-col items-center gap-2",
-                      theme === "light" ? "border-phantom-text bg-phantom-accentBg" : "border-phantom-border hover:border-phantom-borderHover"
-                    )}
-                  >
-                    <Sun className="w-5 h-5 text-phantom-text" />
-                    <span className="text-body text-phantom-text">Light</span>
-                  </button>
-                </div>
-                <div className="mt-6">
-                  <SelectOption
-                    label="Language"
-                    value={settings.language}
-                    onChange={(v) => updateSetting("language", v)}
-                    options={[
-                      { value: "en", label: "English" },
-                      { value: "es", label: "Spanish" },
-                      { value: "de", label: "German" },
-                      { value: "fr", label: "French" },
-                      { value: "zh", label: "Mandarin" },
-                    ]}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Notifications */}
-            {activeTab === "notifications" && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-card-title text-phantom-text mb-3">In-App Notifications</h2>
-                  <Toggle label="Alerts (exam changes, deadline updates)" checked={settings.notificationAlerts} onChange={(v) => updateSetting("notificationAlerts", v)} />
-                  <Toggle label="Draft notifications" checked={settings.notificationDrafts} onChange={(v) => updateSetting("notificationDrafts", v)} />
-                  <Toggle label="AI insights" checked={settings.notificationInsights} onChange={(v) => updateSetting("notificationInsights", v)} />
-                  <Toggle label="Lecture transcriptions" checked={settings.notificationLectures} onChange={(v) => updateSetting("notificationLectures", v)} />
-                  <Toggle label="Campus Pulse updates" checked={settings.notificationSocial} onChange={(v) => updateSetting("notificationSocial", v)} />
-                </div>
-                <div className="border-t border-phantom-border pt-6">
-                  <h2 className="text-card-title text-phantom-text mb-3">Push Notifications</h2>
-                  <Toggle label="Push alerts" checked={settings.pushAlerts} onChange={(v) => updateSetting("pushAlerts", v)} />
-                  <Toggle label="Push for drafts" checked={settings.pushDrafts} onChange={(v) => updateSetting("pushDrafts", v)} />
-                  <Toggle label="Push for insights" checked={settings.pushInsights} onChange={(v) => updateSetting("pushInsights", v)} />
-                  <Toggle label="Push for social" checked={settings.pushSocial} onChange={(v) => updateSetting("pushSocial", v)} />
-                </div>
-                <div className="border-t border-phantom-border pt-6">
-                  <h2 className="text-card-title text-phantom-text mb-3">Modes</h2>
-                  <Toggle label="Do Not Disturb" checked={settings.doNotDisturb} onChange={(v) => updateSetting("doNotDisturb", v)} />
-                  <Toggle label="Exam Mode (maximize study notifications)" checked={settings.examMode} onChange={(v) => updateSetting("examMode", v)} />
-                </div>
-              </div>
-            )}
-
-            {/* LMS */}
-            {activeTab === "lms" && (
-              <div>
-                <h2 className="text-card-title text-phantom-text mb-4">Connected Platforms</h2>
-                <div className="space-y-3">
-                  <div className="p-3 border border-phantom-border rounded-lg flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-sm bg-phantom-bgTertiary flex items-center justify-center">
-                      <span className="text-phantom-text font-bold">C</span>
+                  <SettingsSection title="Quiet Hours">
+                    <div className="flex items-center gap-3 max-w-sm">
+                      <div className="flex-1">
+                        <label className="text-caption text-phantom-textMuted block mb-1">
+                          Start
+                        </label>
+                        <Input
+                          type="time"
+                          value={settings.quietHoursStart || ""}
+                          onChange={(e) =>
+                            updateSetting(
+                              "quietHoursStart",
+                              e.target.value || null
+                            )
+                          }
+                          className="h-9"
+                        />
+                      </div>
+                      <span className="text-phantom-textMuted mt-5">to</span>
+                      <div className="flex-1">
+                        <label className="text-caption text-phantom-textMuted block mb-1">
+                          End
+                        </label>
+                        <Input
+                          type="time"
+                          value={settings.quietHoursEnd || ""}
+                          onChange={(e) =>
+                            updateSetting(
+                              "quietHoursEnd",
+                              e.target.value || null
+                            )
+                          }
+                          className="h-9"
+                        />
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="text-body text-phantom-text">Canvas</p>
-                      <p className="text-caption text-phantom-textTertiary">Connected · Last synced just now</p>
+                  </SettingsSection>
+
+                  <Divider />
+
+                  <SettingsSection title="Modes">
+                    <div className="divide-y divide-phantom-border/50">
+                      <ToggleRow
+                        label="Do Not Disturb"
+                        description="Silence all notifications"
+                        checked={settings.doNotDisturb}
+                        onChange={(v) => updateSetting("doNotDisturb", v)}
+                      />
+                      <ToggleRow
+                        label="Exam Mode"
+                        description="Maximize study-related notifications, minimize distractions"
+                        checked={settings.examMode}
+                        onChange={(v) => updateSetting("examMode", v)}
+                      />
                     </div>
-                    <div className="w-2 h-2 rounded-full bg-phantom-success" />
-                  </div>
+                  </SettingsSection>
                 </div>
-                <button className="mt-4 h-9 px-4 border border-dashed border-phantom-border rounded-sm text-body text-phantom-textTertiary hover:border-phantom-borderHover transition-colors">
-                  + Add another LMS
-                </button>
-              </div>
-            )}
+              )}
 
-            {/* AI Preferences */}
-            {activeTab === "ai" && (
-              <div className="space-y-4">
-                <h2 className="text-card-title text-phantom-text mb-4">AI Behavior</h2>
-                <SelectOption
-                  label="Writing tone"
-                  value={settings.writingTone}
-                  onChange={(v) => updateSetting("writingTone", v)}
-                  options={[
-                    { value: "FORMAL", label: "More Formal" },
-                    { value: "BALANCED", label: "Balanced" },
-                    { value: "CASUAL", label: "More Casual" },
-                  ]}
-                />
-                <SelectOption
-                  label="Draft autonomy"
-                  value={settings.draftAutonomy}
-                  onChange={(v) => updateSetting("draftAutonomy", v)}
-                  options={[
-                    { value: "CONSERVATIVE", label: "Conservative (outlines only)" },
-                    { value: "BALANCED", label: "Balanced (full drafts, needs editing)" },
-                    { value: "AGGRESSIVE", label: "Aggressive (near-final drafts)" },
-                  ]}
-                />
-                <SelectOption
-                  label="GPA advisor level"
-                  value={settings.gpaAdvisorLevel}
-                  onChange={(v) => updateSetting("gpaAdvisorLevel", v)}
-                  options={[
-                    { value: "RELAXED", label: "Relaxed (weekly tips)" },
-                    { value: "ACTIVE", label: "Active (daily recommendations)" },
-                    { value: "INTENSE", label: "Intense (real-time alerts)" },
-                  ]}
-                />
-              </div>
-            )}
-
-            {/* Privacy */}
-            {activeTab === "privacy" && (
-              <div className="space-y-6">
+              {/* ---------------------------------------------------------- */}
+              {/*  LMS Connections Tab                                         */}
+              {/* ---------------------------------------------------------- */}
+              {activeTab === "lms" && (
                 <div>
-                  <h2 className="text-card-title text-phantom-text mb-3">Data Sharing</h2>
-                  <Toggle label="Participate in Campus Pulse (anonymized)" checked={settings.campusPulseOptIn} onChange={(v) => updateSetting("campusPulseOptIn", v)} />
-                  <Toggle label="Appear in leaderboards (anonymous)" checked={settings.leaderboardOptIn} onChange={(v) => updateSetting("leaderboardOptIn", v)} />
-                  <Toggle label="Allow Phantom to use my data for AI improvement" checked={settings.aiTrainingOptIn} onChange={(v) => updateSetting("aiTrainingOptIn", v)} />
+                  <SettingsSection
+                    title="Connected Platforms"
+                    description="Manage your learning management system connections."
+                  >
+                    <div className="space-y-2">
+                      {lmsConnections.map((conn) => (
+                        <LmsConnectionCard
+                          key={conn.id}
+                          connection={conn}
+                        />
+                      ))}
+                    </div>
+
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="mt-3 border-dashed"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add New Connection
+                    </Button>
+                  </SettingsSection>
                 </div>
-                <div className="border-t border-phantom-border pt-6">
-                  <h2 className="text-card-title text-phantom-text mb-3">Transparency</h2>
-                  <p className="text-body text-phantom-textSecondary">
-                    Phantom collects course data, lecture transcripts, and assignment information to provide personalized AI assistance. All data is encrypted at rest and in transit.
-                  </p>
-                  <button className="mt-3 text-body text-phantom-textSecondary underline hover:text-phantom-text transition-colors">
-                    View full transparency log
-                  </button>
+              )}
+
+              {/* ---------------------------------------------------------- */}
+              {/*  AI Preferences Tab                                          */}
+              {/* ---------------------------------------------------------- */}
+              {activeTab === "ai" && (
+                <div>
+                  <SettingsSection
+                    title="AI Behavior"
+                    description="Customize how Phantom generates content and provides guidance."
+                  >
+                    <div className="divide-y divide-phantom-border/50">
+                      <SelectRow
+                        label="Writing Tone"
+                        description="Controls the formality of AI-generated text"
+                        value={settings.writingTone}
+                        onChange={(v) =>
+                          updateSetting(
+                            "writingTone",
+                            v as UserSettings["writingTone"]
+                          )
+                        }
+                        options={[
+                          { value: "FORMAL", label: "Formal" },
+                          { value: "BALANCED", label: "Balanced" },
+                          { value: "CASUAL", label: "Casual" },
+                        ]}
+                      />
+                      <SelectRow
+                        label="Draft Autonomy"
+                        description="How much freedom Phantom has when generating drafts"
+                        value={settings.draftAutonomy}
+                        onChange={(v) =>
+                          updateSetting(
+                            "draftAutonomy",
+                            v as UserSettings["draftAutonomy"]
+                          )
+                        }
+                        options={[
+                          {
+                            value: "CONSERVATIVE",
+                            label: "Conservative (outlines only)",
+                          },
+                          {
+                            value: "BALANCED",
+                            label: "Balanced (full drafts, needs editing)",
+                          },
+                          {
+                            value: "AGGRESSIVE",
+                            label: "Aggressive (near-final drafts)",
+                          },
+                        ]}
+                      />
+                      <SelectRow
+                        label="GPA Advisor Level"
+                        description="Frequency and intensity of GPA-related guidance"
+                        value={settings.gpaAdvisorLevel}
+                        onChange={(v) =>
+                          updateSetting(
+                            "gpaAdvisorLevel",
+                            v as UserSettings["gpaAdvisorLevel"]
+                          )
+                        }
+                        options={[
+                          { value: "RELAXED", label: "Relaxed (weekly tips)" },
+                          {
+                            value: "ACTIVE",
+                            label: "Active (daily recommendations)",
+                          },
+                          {
+                            value: "INTENSE",
+                            label: "Intense (real-time alerts)",
+                          },
+                        ]}
+                      />
+                      <SelectRow
+                        label="Language Preference"
+                        value={settings.language}
+                        onChange={(v) => updateSetting("language", v)}
+                        options={[
+                          { value: "en", label: "English" },
+                          { value: "es", label: "Spanish" },
+                          { value: "de", label: "German" },
+                          { value: "fr", label: "French" },
+                          { value: "zh", label: "Mandarin" },
+                          { value: "ja", label: "Japanese" },
+                          { value: "ko", label: "Korean" },
+                          { value: "pt", label: "Portuguese" },
+                        ]}
+                      />
+                    </div>
+                  </SettingsSection>
                 </div>
-              </div>
-            )}
-          </div>
-        </motion.div>
+              )}
+
+              {/* ---------------------------------------------------------- */}
+              {/*  Privacy Tab                                                 */}
+              {/* ---------------------------------------------------------- */}
+              {activeTab === "privacy" && (
+                <div>
+                  <SettingsSection
+                    title="Data Sharing"
+                    description="Control how your data is used."
+                  >
+                    <div className="divide-y divide-phantom-border/50">
+                      <ToggleRow
+                        label="Campus Pulse Participation"
+                        description="Share anonymized usage data for campus-wide analytics"
+                        checked={settings.campusPulseOptIn}
+                        onChange={(v) => updateSetting("campusPulseOptIn", v)}
+                      />
+                      <ToggleRow
+                        label="Leaderboard Opt-In"
+                        description="Appear in anonymous campus leaderboards"
+                        checked={settings.leaderboardOptIn}
+                        onChange={(v) => updateSetting("leaderboardOptIn", v)}
+                      />
+                      <ToggleRow
+                        label="AI Training Opt-In"
+                        description="Allow Phantom to use your anonymized data to improve AI models"
+                        checked={settings.aiTrainingOptIn}
+                        onChange={(v) => updateSetting("aiTrainingOptIn", v)}
+                      />
+                    </div>
+                  </SettingsSection>
+
+                  <Divider />
+
+                  <SettingsSection title="Transparency">
+                    <p className="text-body text-phantom-textSecondary leading-relaxed">
+                      Phantom collects course data, lecture transcripts, and
+                      assignment information to provide personalized AI
+                      assistance. All data is encrypted at rest and in transit.
+                      Your data is never shared with third parties without your
+                      explicit consent.
+                    </p>
+                    <Button variant="default" size="sm" className="mt-3">
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      View Transparency Log
+                    </Button>
+                  </SettingsSection>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmation
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteAccount}
+      />
     </div>
   );
 }
