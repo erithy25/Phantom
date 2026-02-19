@@ -79,7 +79,7 @@ export function getPriorityColor(priority: string): string {
 }
 
 export function isEduEmail(email: string): boolean {
-  return email.endsWith(".edu") || email.endsWith(".ac.uk") || email.endsWith(".edu.au");
+  return email.includes("@");
 }
 
 export function getUniversityFromEmail(email: string): string | null {

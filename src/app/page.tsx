@@ -45,13 +45,13 @@ function HeroSection() {
     setError("");
 
     if (!email.trim()) {
-      setError("Enter your .edu email to continue.");
+      setError("Enter your email to continue.");
       triggerShake();
       return;
     }
 
     if (!isEduEmail(email.trim().toLowerCase())) {
-      setError("Phantom is for university students only. Enter a .edu email.");
+      setError("Please enter a valid email address.");
       triggerShake();
       return;
     }
@@ -132,7 +132,7 @@ function HeroSection() {
             }}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            placeholder="Enter your .edu email"
+            placeholder="Enter your email"
             className={cn(
               "flex-1 h-full bg-transparent px-5",
               "text-[14px] text-white placeholder:text-[#52525B]",

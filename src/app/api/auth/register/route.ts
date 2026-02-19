@@ -36,13 +36,7 @@ export async function POST(request: Request) {
 
     const email = validation.data.email.toLowerCase();
 
-    const universityInfo = lookupUniversity(email);
-    if (!universityInfo) {
-      return NextResponse.json(
-        { error: "Please use a valid university email address (.edu)." },
-        { status: 400 }
-      );
-    }
+    const universityInfo = lookupUniversity(email)!;
 
     let university = await db.university.findUnique({
       where: { domain: universityInfo.domain },

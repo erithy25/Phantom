@@ -122,7 +122,7 @@ export default function RegisterPage() {
           <input
             type="email"
             autoComplete="email"
-            placeholder="Enter your .edu email"
+            placeholder="Enter your email"
             disabled={isLoading}
             className="h-[48px] w-full rounded-[12px] border border-phantom-border bg-phantom-bgInput pl-4 pr-12 text-body text-phantom-text placeholder:text-phantom-textMuted focus:border-phantom-borderHover focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             {...register("email")}

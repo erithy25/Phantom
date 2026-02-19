@@ -139,7 +139,7 @@ export default function ForgotPasswordPage() {
             id="email"
             type="email"
             autoComplete="email"
-            placeholder="you@university.edu"
+            placeholder="you@example.com"
             disabled={isLoading}
             className="h-[48px] w-full rounded-[12px] border border-phantom-border bg-phantom-bgInput px-4 text-body text-phantom-text placeholder:text-phantom-textMuted focus:border-phantom-borderHover focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             {...register("email")}

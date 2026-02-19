@@ -3,14 +3,7 @@ import { z } from "zod";
 export const registerSchema = z.object({
   email: z
     .string()
-    .email("Please enter a valid email address")
-    .refine(
-      (email) =>
-        email.endsWith(".edu") ||
-        email.endsWith(".ac.uk") ||
-        email.endsWith(".edu.au"),
-      "Phantom is currently available for university students only."
-    ),
+    .email("Please enter a valid email address"),
 });
 
 export const verifySchema = z.object({
