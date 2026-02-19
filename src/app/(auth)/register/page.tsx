@@ -1,3 +1,4 @@
+/* Phantom Registration - v2 */
 "use client";
 
 import { useState, Suspense } from "react";
