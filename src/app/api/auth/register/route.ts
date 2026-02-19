@@ -4,6 +4,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { registerSchema } from "@/lib/validations";
 import { lookupUniversity } from "@/lib/universities";
 import { sendVerificationEmail } from "@/lib/email";
+import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
@@ -27,6 +28,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const validation = registerSchema.safeParse(body);
 
+
     if (!validation.success) {
       return NextResponse.json(
         { error: validation.error.errors[0].message },
@@ -35,6 +37,9 @@ export async function POST(request: Request) {
     }
 
     const email = validation.data.email.toLowerCase();
+    const { password } = validation.data;
+
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     const universityInfo = lookupUniversity(email)!;
 
@@ -58,8 +63,15 @@ export async function POST(request: Request) {
       user = await db.user.create({
         data: {
           email,
+          hashedPassword,
           universityId: university.id,
         },
+      });
+    } else if (!user.hashedPassword) {
+      // User exists but has no password yet (e.g. re-registering)
+      await db.user.update({
+        where: { email },
+        data: { hashedPassword },
       });
     }
 

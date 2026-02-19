@@ -88,7 +88,10 @@ export async function POST(request: Request) {
 
     await db.user.update({
       where: { email: normalizedEmail },
-      data: { emailVerified: new Date() },
+      data: {
+        emailVerified: new Date(),
+        onboardingDone: true,
+      },
     });
 
     await db.verificationToken.delete({ where: { id: token.id } });

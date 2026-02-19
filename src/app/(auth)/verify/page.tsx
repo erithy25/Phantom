@@ -11,6 +11,7 @@ import {
   type ChangeEvent,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 import Link from "next/link";
 
 const CODE_LENGTH = 6;
@@ -118,8 +119,25 @@ function VerifyPageContent() {
           return;
         }
 
-        // Success - navigate to onboarding
-        router.push(`/onboarding?email=${encodeURIComponent(email)}`);
+        // Auto-login after successful verification
+        const storedPassword = sessionStorage.getItem("_phantom_reg_pw");
+        sessionStorage.removeItem("_phantom_reg_pw");
+
+        if (storedPassword) {
+          const signInResult = await signIn("credentials", {
+            email,
+            password: storedPassword,
+            redirect: false,
+          });
+
+          if (signInResult?.ok) {
+            router.push("/dashboard");
+            return;
+          }
+        }
+
+        // Fallback: redirect to login if auto-login fails
+        router.push(`/login?verified=true`);
       } catch {
         setError("Something went wrong. Please try again.");
         triggerShake();

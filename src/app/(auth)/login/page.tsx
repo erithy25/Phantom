@@ -15,7 +15,8 @@ type LoginFormData = z.infer<typeof loginSchema>;
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/";
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const justVerified = searchParams.get("verified") === "true";
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +114,13 @@ function LoginPageContent() {
 
       {/* Form */}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        {/* Verified success banner */}
+        {justVerified && !error && (
+          <div className="rounded-lg border border-phantom-success/30 bg-phantom-success/10 px-4 py-3 text-body text-phantom-success">
+            Email verified! Please log in.
+          </div>
+        )}
+
         {/* Error banner */}
         {error && (
           <div className="rounded-lg border border-phantom-danger/30 bg-phantom-danger/10 px-4 py-3 text-body text-phantom-danger">

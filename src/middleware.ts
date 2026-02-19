@@ -51,15 +51,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Authenticated but onboarding not complete: redirect to onboarding
-  // (unless already on onboarding)
-  if (!token.onboardingDone && pathname !== "/onboarding") {
-    return NextResponse.redirect(new URL("/onboarding", request.url));
-  }
-
-  // Onboarding complete but visiting onboarding page: redirect to dashboard
-  if (token.onboardingDone && pathname === "/onboarding") {
-    return NextResponse.redirect(new URL("/", request.url));
+  // Redirect onboarding page to dashboard (no longer needed)
+  if (pathname === "/onboarding") {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   // Admin routes: check role
