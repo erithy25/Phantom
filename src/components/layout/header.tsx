@@ -51,12 +51,13 @@ export function Header({ title }: HeaderProps) {
   const dateStr = getCurrentDate();
   const userName = session?.user?.name || "Student";
   const userRole = session?.user?.role || "FREE";
-  const initials = userName
+  const initials = (userName || "S")
     .split(" ")
+    .filter(Boolean)
     .map((n) => n[0])
     .join("")
     .toUpperCase()
-    .slice(0, 2);
+    .slice(0, 2) || "S";
 
   return (
     <header

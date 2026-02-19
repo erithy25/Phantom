@@ -14,6 +14,14 @@ export async function GET() {
 
     const userId = session.user.id;
 
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        name: true,
+        university: { select: { name: true } },
+      },
+    });
+
     const [
       courses,
       upcomingTasks,
@@ -132,6 +140,9 @@ export async function GET() {
     });
 
     return NextResponse.json({
+      userName: user?.name || null,
+      universityName: user?.university?.name || null,
+      insight: null,
       gpa: {
         current: gpa,
         totalCredits,

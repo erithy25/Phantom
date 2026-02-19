@@ -17,16 +17,27 @@ import type { Course } from "@/components/dashboard/course-overview";
 
 interface DashboardStats {
   userName: string | null;
-  insight: string;
-  gpa: number;
-  gpaTrend: string;
-  credits: number;
-  tasksDue: number;
-  draftsReady: number;
-  tasks: Task[];
-  courses: Course[];
-  activeUsers: number;
-  universityName: string;
+  universityName: string | null;
+  insight: string | null;
+  gpa: {
+    current: number;
+    totalCredits: number;
+    gradedCredits: number;
+  };
+  courses: {
+    total: number;
+    avgProgress: number;
+    list: Course[];
+  };
+  tasks: {
+    dueToday: number;
+    dueThisWeek: number;
+    overdue: number;
+    upcoming: Task[];
+  };
+  drafts: {
+    ready: number;
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -122,27 +133,27 @@ export default function DashboardPage() {
         <WelcomeBanner userName={data?.userName} />
 
         {/* AI Insight */}
-        <AiInsightBanner insight={data?.insight} />
+        <AiInsightBanner insight={data?.insight ?? undefined} />
 
         {/* Stats grid */}
         <StatsGrid
-          gpa={data?.gpa}
-          gpaTrend={data?.gpaTrend}
-          credits={data?.credits}
-          tasksDue={data?.tasksDue}
-          draftsReady={data?.draftsReady}
+          gpa={data?.gpa?.current}
+          gpaTrend={undefined}
+          credits={data?.gpa?.totalCredits}
+          tasksDue={data?.tasks?.dueThisWeek}
+          draftsReady={data?.drafts?.ready}
         />
 
         {/* Two-column layout: Tasks + Courses */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <UpcomingTasks tasks={data?.tasks} />
-          <CourseOverview courses={data?.courses} />
+          <UpcomingTasks tasks={data?.tasks?.upcoming} />
+          <CourseOverview courses={data?.courses?.list} />
         </div>
 
         {/* Campus Pulse */}
         <CampusPulseBanner
-          activeUsers={data?.activeUsers}
-          universityName={data?.universityName}
+          activeUsers={undefined}
+          universityName={data?.universityName ?? undefined}
         />
       </div>
     </div>

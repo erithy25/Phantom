@@ -31,11 +31,6 @@ export default function MainLayout({
       router.replace("/login");
       return;
     }
-
-    if (session?.user && !session.user.onboardingDone) {
-      router.replace("/onboarding");
-      return;
-    }
   }, [status, session, router]);
 
   // Loading state
@@ -54,11 +49,6 @@ export default function MainLayout({
 
   // Not authenticated
   if (status === "unauthenticated") {
-    return null;
-  }
-
-  // Not onboarded
-  if (session?.user && !session.user.onboardingDone) {
     return null;
   }
 
