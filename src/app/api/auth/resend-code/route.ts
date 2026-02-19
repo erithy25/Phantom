@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { sendVerificationEmail } from "@/lib/email";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
       },
     });
 
-    console.log(`Verification code for ${normalizedEmail}: ${code}`);
+    await sendVerificationEmail(normalizedEmail, code);
 
     return NextResponse.json({
       success: true,

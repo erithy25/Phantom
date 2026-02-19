@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { registerSchema } from "@/lib/validations";
 import { lookupUniversity } from "@/lib/universities";
+import { sendVerificationEmail } from "@/lib/email";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
       },
     });
 
-    console.log(`[PHANTOM] Verification code for ${email}: ${code}`);
+    await sendVerificationEmail(email, code);
 
     return NextResponse.json({
       success: true,

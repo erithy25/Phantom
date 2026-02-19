@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { sendPasswordResetEmail } from "@/lib/email";
 import { forgotPasswordSchema } from "@/lib/validations";
 import crypto from "crypto";
 
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
         },
       });
 
-      console.log(`[PHANTOM] Password reset token for ${email}: ${token}`);
+      await sendPasswordResetEmail(email, token);
     }
 
     return NextResponse.json({
