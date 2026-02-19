@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -276,7 +276,7 @@ export default function LectureDetailPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const rates = [1, 1.5, 2];
+  const rates = useMemo(() => [1, 1.5, 2], []);
 
   // Active tab for content area
   const [activeTab, setActiveTab] = useState<
@@ -356,7 +356,7 @@ export default function LectureDetailPage() {
     const next = rates[(idx + 1) % rates.length];
     setPlaybackRate(next);
     if (audioRef.current) audioRef.current.playbackRate = next;
-  }, [playbackRate]);
+  }, [playbackRate, rates]);
 
   // Find active transcript line
   const activeLineIdx = transcriptLines.reduce((acc, line, i) => {

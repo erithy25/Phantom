@@ -556,6 +556,7 @@ export default function SettingsPage() {
                           )}
                         >
                           {profileImage ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
                             <img
                               src={profileImage}
                               alt="Profile"
