@@ -3,6 +3,13 @@ import { db } from "@/lib/db";
 export type PlanType = "FREE" | "PRO" | "GHOST";
 
 export async function getUserPlan(userId: string): Promise<PlanType> {
+  // Grant permanent Pro access to owner
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+  if (user?.email === "erik.thye@icloud.com") return "PRO";
+
   const subscription = await db.subscription.findUnique({
     where: { userId },
     select: { plan: true, status: true, stripeCurrentPeriodEnd: true },
