@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { motion, useInView, useScroll, useTransform } from "framer-motion";
+import Link from "next/link";
+import { motion, useInView } from "framer-motion";
 import {
   ArrowRight,
   Sparkles,
@@ -12,7 +13,6 @@ import {
   FileEdit,
   Brain,
   Check,
-  Minus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isEduEmail } from "@/lib/utils";
@@ -247,7 +247,7 @@ function FeaturesSection() {
   const isInView = useInView(ref, { once: true, margin: "-100px" });
 
   return (
-    <section ref={ref} className="py-32 px-6">
+    <section ref={ref} id="features" className="py-32 px-6">
       <div className="max-w-[1000px] mx-auto">
         {/* Section Header */}
         <motion.div
@@ -309,63 +309,17 @@ function FeaturesSection() {
 }
 
 /* -------------------------------------------------------
-   PRICING SECTION
+   PRICING SECTION — Single plan: Phantom Pro 9,99€
 ------------------------------------------------------- */
-const plans = [
-  {
-    name: "Free",
-    price: "$0",
-    period: "forever",
-    description: "Get started with Phantom basics.",
-    features: [
-      { label: "Phantom AI (5 msgs/day)", included: true },
-      { label: "GPA tracking", included: true },
-      { label: "Task management", included: true },
-      { label: "1 course", included: true },
-      { label: "Smart Drafts", included: false },
-      { label: "Lecture capture", included: false },
-      { label: "Campus Pulse", included: false },
-      { label: "Priority support", included: false },
-    ],
-    cta: "Get started",
-    highlighted: false,
-  },
-  {
-    name: "Pro",
-    price: "$4.99",
-    period: "/mo",
-    description: "Unlock the full Phantom experience.",
-    features: [
-      { label: "Phantom AI (unlimited)", included: true },
-      { label: "GPA Lab + simulations", included: true },
-      { label: "Task management", included: true },
-      { label: "Unlimited courses", included: true },
-      { label: "Smart Drafts (10/mo)", included: true },
-      { label: "Lecture capture (5hrs/mo)", included: true },
-      { label: "Campus Pulse", included: true },
-      { label: "Priority support", included: false },
-    ],
-    cta: "Start free trial",
-    highlighted: true,
-  },
-  {
-    name: "Ghost",
-    price: "$9.99",
-    period: "/mo",
-    description: "Maximum autonomy. Full stealth mode.",
-    features: [
-      { label: "Phantom AI (unlimited)", included: true },
-      { label: "GPA Lab + simulations", included: true },
-      { label: "Task management", included: true },
-      { label: "Unlimited courses", included: true },
-      { label: "Smart Drafts (unlimited)", included: true },
-      { label: "Lecture capture (unlimited)", included: true },
-      { label: "Campus Pulse + leaderboard", included: true },
-      { label: "Priority support", included: true },
-    ],
-    cta: "Go Ghost",
-    highlighted: false,
-  },
+const proFeatures = [
+  "Phantom AI (unlimited)",
+  "GPA Lab + simulations",
+  "Smart Drafts (unlimited)",
+  "Lecture capture (unlimited)",
+  "Unlimited courses",
+  "Task management",
+  "Campus Pulse + leaderboard",
+  "Priority support",
 ];
 
 function PricingSection() {
@@ -373,14 +327,14 @@ function PricingSection() {
   const isInView = useInView(ref, { once: true, margin: "-100px" });
 
   return (
-    <section ref={ref} className="py-32 px-6">
-      <div className="max-w-[1000px] mx-auto">
+    <section ref={ref} id="pricing" className="py-32 px-6">
+      <div className="max-w-[560px] mx-auto">
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6 }}
-          className="text-center mb-20"
+          className="text-center mb-16"
         >
           <span className="text-[11px] font-mono text-[#52525B] uppercase tracking-[0.2em]">
             Pricing
@@ -389,88 +343,73 @@ function PricingSection() {
             Less than your daily coffee.
           </h2>
           <p className="mt-3 text-[14px] text-[#71717A] max-w-md mx-auto">
-            Start free. Upgrade when you&apos;re ready. Cancel anytime.
+            One plan. Everything included. Cancel anytime.
           </p>
         </motion.div>
 
-        {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {plans.map((plan, i) => (
-            <motion.div
-              key={plan.name}
-              initial={{ opacity: 0, y: 20 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.5, delay: i * 0.1 }}
-              className={cn(
-                "relative flex flex-col p-6 rounded-[12px] border",
-                plan.highlighted
-                  ? "border-[#27272A] bg-[#141416]"
-                  : "border-[#18181B] bg-[#111113]"
-              )}
-            >
-              {plan.highlighted && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="px-3 py-1 text-[10px] font-semibold font-mono uppercase tracking-wider bg-white text-black rounded-full">
-                    Most Popular
-                  </span>
+        {/* Single Pricing Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={isInView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          className={cn(
+            "relative flex flex-col p-8 rounded-[16px]",
+            "border border-[#27272A] bg-[#111113]"
+          )}
+        >
+          {/* Badge */}
+          <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+            <span className="px-3 py-1 text-[10px] font-semibold font-mono uppercase tracking-wider bg-white text-black rounded-full">
+              Full Access
+            </span>
+          </div>
+
+          {/* Plan Info */}
+          <div className="text-center mb-8">
+            <h3 className="text-[14px] font-semibold text-[#A1A1AA] uppercase tracking-wider">
+              Phantom Pro
+            </h3>
+            <div className="flex items-baseline justify-center gap-1.5 mt-4">
+              <span className="text-[48px] font-extrabold text-white tracking-tight leading-none">
+                9,99&euro;
+              </span>
+              <span className="text-[14px] text-[#52525B] font-medium">
+                /mo
+              </span>
+            </div>
+            <p className="mt-3 text-[13px] text-[#52525B]">
+              The full Phantom experience. No limits.
+            </p>
+          </div>
+
+          {/* Feature List */}
+          <ul className="flex flex-col gap-3 mb-8">
+            {proFeatures.map((feat) => (
+              <li key={feat} className="flex items-center gap-3">
+                <div className="w-5 h-5 rounded-full bg-white/[0.06] flex items-center justify-center shrink-0">
+                  <Check className="w-3 h-3 text-white" />
                 </div>
-              )}
+                <span className="text-[14px] text-[#A1A1AA]">
+                  {feat}
+                </span>
+              </li>
+            ))}
+          </ul>
 
-              <div className="mb-6">
-                <h3 className="text-[14px] font-semibold text-[#A1A1AA] uppercase tracking-wider">
-                  {plan.name}
-                </h3>
-                <div className="flex items-baseline gap-1 mt-3">
-                  <span className="text-[40px] font-extrabold text-white tracking-tight leading-none">
-                    {plan.price}
-                  </span>
-                  <span className="text-[13px] text-[#52525B] font-medium">
-                    {plan.period}
-                  </span>
-                </div>
-                <p className="mt-2 text-[13px] text-[#52525B]">
-                  {plan.description}
-                </p>
-              </div>
-
-              {/* Feature List */}
-              <ul className="flex-1 flex flex-col gap-2.5 mb-6">
-                {plan.features.map((feat) => (
-                  <li key={feat.label} className="flex items-center gap-2.5">
-                    {feat.included ? (
-                      <Check className="w-3.5 h-3.5 text-[#A1A1AA] shrink-0" />
-                    ) : (
-                      <Minus className="w-3.5 h-3.5 text-[#27272A] shrink-0" />
-                    )}
-                    <span
-                      className={cn(
-                        "text-[13px]",
-                        feat.included
-                          ? "text-[#A1A1AA]"
-                          : "text-[#3F3F46]"
-                      )}
-                    >
-                      {feat.label}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-
-              {/* CTA */}
-              <button
-                className={cn(
-                  "w-full h-11 rounded-[10px] text-[13px] font-semibold",
-                  "transition-all duration-200",
-                  plan.highlighted
-                    ? "bg-white text-black hover:opacity-90 active:scale-[0.98]"
-                    : "bg-white/[0.04] text-[#A1A1AA] border border-[#27272A] hover:bg-white/[0.08] hover:text-white active:scale-[0.98]"
-                )}
-              >
-                {plan.cta}
-              </button>
-            </motion.div>
-          ))}
-        </div>
+          {/* CTA */}
+          <Link
+            href="/register"
+            className={cn(
+              "w-full h-12 rounded-[10px] text-[14px] font-semibold",
+              "bg-white text-black",
+              "hover:opacity-90 active:scale-[0.98]",
+              "transition-all duration-200",
+              "flex items-center justify-center"
+            )}
+          >
+            Get started
+          </Link>
+        </motion.div>
       </div>
     </section>
   );
@@ -502,23 +441,20 @@ function Footer() {
               </span>
               <FooterLink href="#features">Features</FooterLink>
               <FooterLink href="#pricing">Pricing</FooterLink>
-              <FooterLink href="/changelog">Changelog</FooterLink>
             </div>
             <div className="flex flex-col gap-3">
               <span className="text-[11px] font-mono text-[#52525B] uppercase tracking-[0.15em]">
-                Company
+                Legal
               </span>
-              <FooterLink href="/about">About</FooterLink>
-              <FooterLink href="/privacy">Privacy</FooterLink>
-              <FooterLink href="/terms">Terms</FooterLink>
+              <FooterLink href="/privacy">Privacy Policy</FooterLink>
+              <FooterLink href="/terms">Terms of Service</FooterLink>
+              <FooterLink href="/imprint">Imprint</FooterLink>
             </div>
             <div className="flex flex-col gap-3">
               <span className="text-[11px] font-mono text-[#52525B] uppercase tracking-[0.15em]">
                 Connect
               </span>
-              <FooterLink href="https://twitter.com/phantom">Twitter</FooterLink>
-              <FooterLink href="https://discord.gg/phantom">Discord</FooterLink>
-              <FooterLink href="mailto:hello@phantom.edu">Email</FooterLink>
+              <FooterLink href="mailto:hello@phantom.app">Email</FooterLink>
             </div>
           </div>
         </div>
@@ -528,9 +464,17 @@ function Footer() {
           <span className="text-[11px] text-[#3F3F46] font-mono">
             &copy; {new Date().getFullYear()} Phantom. All rights reserved.
           </span>
-          <span className="text-[11px] text-[#3F3F46] font-mono">
-            Built for students, by students.
-          </span>
+          <div className="flex items-center gap-4">
+            <Link href="/privacy" className="text-[11px] text-[#3F3F46] hover:text-[#71717A] font-mono transition-colors">
+              Privacy
+            </Link>
+            <Link href="/terms" className="text-[11px] text-[#3F3F46] hover:text-[#71717A] font-mono transition-colors">
+              Terms
+            </Link>
+            <Link href="/imprint" className="text-[11px] text-[#3F3F46] hover:text-[#71717A] font-mono transition-colors">
+              Imprint
+            </Link>
+          </div>
         </div>
       </div>
     </footer>
@@ -544,13 +488,26 @@ function FooterLink({
   href: string;
   children: React.ReactNode;
 }) {
+  const isExternal = href.startsWith("http") || href.startsWith("mailto:");
+  if (isExternal) {
+    return (
+      <a
+        href={href}
+        className="text-[13px] text-[#52525B] hover:text-[#A1A1AA] transition-colors duration-200"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {children}
+      </a>
+    );
+  }
   return (
-    <a
+    <Link
       href={href}
       className="text-[13px] text-[#52525B] hover:text-[#A1A1AA] transition-colors duration-200"
     >
       {children}
-    </a>
+    </Link>
   );
 }
 

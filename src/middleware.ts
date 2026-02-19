@@ -8,6 +8,9 @@ const PUBLIC_PATHS = [
   "/verify",
   "/forgot-password",
   "/reset-password",
+  "/privacy",
+  "/terms",
+  "/imprint",
   "/api/auth",
   "/api/auth/register",
   "/api/auth/verify",
@@ -21,6 +24,11 @@ const ADMIN_PATHS = ["/admin", "/api/admin"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Allow landing page
+  if (pathname === "/") {
+    return NextResponse.next();
+  }
 
   // Allow public paths
   const isPublic = PUBLIC_PATHS.some(
