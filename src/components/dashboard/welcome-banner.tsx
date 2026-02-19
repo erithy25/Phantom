@@ -26,7 +26,7 @@ export function WelcomeBanner({ userName }: WelcomeBannerProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
       >
-        Phantom has been working while you slept. Here&apos;s your briefing.
+        Here&apos;s your overview for today.
       </motion.p>
     </div>
   );

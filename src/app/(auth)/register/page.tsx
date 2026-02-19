@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { z } from "zod";
 import { registerSchema } from "@/lib/validations";
-import { lookupUniversity } from "@/lib/universities";
 
 type RegisterFormData = z.infer<typeof registerSchema>;
 
@@ -18,8 +17,6 @@ function RegisterPageContent() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [universityName, setUniversityName] = useState<string | null>(null);
-  const [studentCount, setStudentCount] = useState<number | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
   const {
@@ -30,44 +27,13 @@ function RegisterPageContent() {
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
+      name: "",
       email: prefillEmail,
       password: "",
     },
   });
 
-  const emailValue = watch("email");
   const passwordValue = watch("password");
-
-  // Auto-detect university from email
-  useEffect(() => {
-    if (emailValue && emailValue.includes("@")) {
-      const uni = lookupUniversity(emailValue);
-      if (uni) {
-        setUniversityName(uni.name);
-        fetchStudentCount(uni.domain);
-      } else {
-        setUniversityName(null);
-        setStudentCount(null);
-      }
-    } else {
-      setUniversityName(null);
-      setStudentCount(null);
-    }
-  }, [emailValue]);
-
-  async function fetchStudentCount(domain: string) {
-    try {
-      const res = await fetch(
-        `/api/campus/student-count?domain=${encodeURIComponent(domain)}`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setStudentCount(data.count ?? null);
-      }
-    } catch {
-      // Non-critical, silently fail
-    }
-  }
 
   // Password strength calculation
   function getPasswordStrength(): { level: number; label: string; color: string } {
@@ -96,6 +62,7 @@ function RegisterPageContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          name: data.name,
           email: data.email.toLowerCase(),
           password: data.password,
         }),
@@ -145,6 +112,25 @@ function RegisterPageContent() {
             {error}
           </div>
         )}
+
+        {/* Name input */}
+        <div>
+          <div className="relative">
+            <input
+              type="text"
+              autoComplete="name"
+              placeholder="Your name"
+              disabled={isLoading}
+              className="h-[48px] w-full rounded-[12px] border border-phantom-border bg-phantom-bgInput pl-4 pr-4 text-body text-phantom-text placeholder:text-phantom-textMuted focus:border-phantom-borderHover focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              {...register("name")}
+            />
+          </div>
+          {errors.name && (
+            <p className="mt-1.5 text-caption text-phantom-danger">
+              {errors.name.message}
+            </p>
+          )}
+        </div>
 
         {/* Email input */}
         <div>
@@ -263,25 +249,6 @@ function RegisterPageContent() {
           Log in
         </Link>
       </p>
-
-      {/* Student counter */}
-      {universityName && studentCount !== null && studentCount > 0 && (
-        <div className="mt-12 animate-fade-in text-center text-caption text-phantom-textMuted">
-          Join{" "}
-          <span className="text-phantom-textSecondary">
-            {studentCount.toLocaleString()}
-          </span>{" "}
-          students already using Phantom at{" "}
-          <span className="text-phantom-textSecondary">{universityName}</span>
-        </div>
-      )}
-
-      {universityName && studentCount === null && (
-        <div className="mt-12 animate-fade-in text-center text-caption text-phantom-textMuted">
-          Be the first Phantom at{" "}
-          <span className="text-phantom-textSecondary">{universityName}</span>
-        </div>
-      )}
     </div>
   );
 }

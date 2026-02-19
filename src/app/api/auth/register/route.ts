@@ -28,7 +28,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const validation = registerSchema.safeParse(body);
 
-
     if (!validation.success) {
       return NextResponse.json(
         { error: validation.error.errors[0].message },
@@ -37,24 +36,30 @@ export async function POST(request: Request) {
     }
 
     const email = validation.data.email.toLowerCase();
-    const { password } = validation.data;
+    const { password, name } = validation.data;
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    const universityInfo = lookupUniversity(email)!;
+    // Only link to university if email matches a known edu domain
+    const universityInfo = lookupUniversity(email);
+    let universityId: string | null = null;
 
-    let university = await db.university.findUnique({
-      where: { domain: universityInfo.domain },
-    });
-
-    if (!university) {
-      university = await db.university.create({
-        data: {
-          name: universityInfo.name,
-          domain: universityInfo.domain,
-          lmsType: universityInfo.lmsType,
-        },
+    if (universityInfo) {
+      let university = await db.university.findUnique({
+        where: { domain: universityInfo.domain },
       });
+
+      if (!university) {
+        university = await db.university.create({
+          data: {
+            name: universityInfo.name,
+            domain: universityInfo.domain,
+            lmsType: universityInfo.lmsType,
+          },
+        });
+      }
+
+      universityId = university.id;
     }
 
     let user = await db.user.findUnique({ where: { email } });
@@ -63,15 +68,15 @@ export async function POST(request: Request) {
       user = await db.user.create({
         data: {
           email,
+          name,
           hashedPassword,
-          universityId: university.id,
+          universityId,
         },
       });
     } else if (!user.hashedPassword) {
-      // User exists but has no password yet (e.g. re-registering)
       await db.user.update({
         where: { email },
-        data: { hashedPassword },
+        data: { hashedPassword, name },
       });
     }
 

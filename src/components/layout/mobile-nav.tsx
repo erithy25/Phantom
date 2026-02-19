@@ -14,8 +14,8 @@ import { cn } from "@/lib/utils";
 const mobileNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/courses", label: "Courses", icon: BookOpen },
-  { href: "/phantom-ai", label: "AI", icon: Sparkles },
-  { href: "/gpa-lab", label: "GPA", icon: TrendingUp },
+  { href: "/chat", label: "AI", icon: Sparkles },
+  { href: "/gpa", label: "GPA", icon: TrendingUp },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
 ];
 

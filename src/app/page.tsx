@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, FormEvent } from "react";
+import { useState, useRef, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, useInView } from "framer-motion";
@@ -15,8 +15,6 @@ import {
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { isEduEmail } from "@/lib/utils";
-import { lookupUniversity } from "@/lib/universities";
 
 /* -------------------------------------------------------
    HERO SECTION
@@ -27,18 +25,7 @@ function HeroSection() {
   const [error, setError] = useState("");
   const [shake, setShake] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-  const [detectedUni, setDetectedUni] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Detect university from email as the user types
-  useEffect(() => {
-    if (email.includes("@")) {
-      const uni = lookupUniversity(email);
-      setDetectedUni(uni?.name || null);
-    } else {
-      setDetectedUni(null);
-    }
-  }, [email]);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -50,7 +37,7 @@ function HeroSection() {
       return;
     }
 
-    if (!isEduEmail(email.trim().toLowerCase())) {
+    if (!email.includes("@") || !email.includes(".")) {
       setError("Please enter a valid email address.");
       triggerShake();
       return;
@@ -168,17 +155,14 @@ function HeroSection() {
         )}
       </motion.form>
 
-      {/* Social Proof */}
+      {/* Tagline sub */}
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.8, delay: 0.7 }}
         className="mt-5 text-[11px] font-mono text-[#71717A] tracking-wide"
       >
-        Join 2,847 students already using Phantom
-        {detectedUni && (
-          <span className="text-[#A1A1AA]"> at {detectedUni}</span>
-        )}
+        Your AI-powered academic companion.
       </motion.p>
 
       {/* Scroll indicator */}

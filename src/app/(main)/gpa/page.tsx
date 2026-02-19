@@ -13,68 +13,15 @@ import { GpaAdvisor } from "@/components/gpa/gpa-advisor";
 import type { GpaData, GpaHistoryEntry } from "@/types";
 
 /* -------------------------------------------------------------------------- */
-/*  Fallback Mock Data                                                         */
+/*  Empty State                                                                */
 /* -------------------------------------------------------------------------- */
 
-const MOCK_GPA_DATA: GpaData = {
-  currentGpa: 3.52,
-  semesterGpa: 3.64,
-  totalCredits: 68,
-  courses: [
-    {
-      id: "1",
-      name: "Organic Chemistry",
-      code: "CHEM 201",
-      credits: 4,
-      currentGrade: 81,
-      letterGrade: "B-",
-      gpaPoints: 2.7,
-    },
-    {
-      id: "2",
-      name: "Data Structures",
-      code: "CS 201",
-      credits: 3,
-      currentGrade: 86,
-      letterGrade: "B",
-      gpaPoints: 3.0,
-    },
-    {
-      id: "3",
-      name: "Calculus III",
-      code: "MATH 301",
-      credits: 4,
-      currentGrade: 91,
-      letterGrade: "A-",
-      gpaPoints: 3.7,
-    },
-    {
-      id: "4",
-      name: "Modern Philosophy",
-      code: "PHIL 220",
-      credits: 3,
-      currentGrade: 88,
-      letterGrade: "B+",
-      gpaPoints: 3.3,
-    },
-    {
-      id: "5",
-      name: "Technical Writing",
-      code: "ENG 215",
-      credits: 3,
-      currentGrade: 95,
-      letterGrade: "A",
-      gpaPoints: 4.0,
-    },
-  ],
+const EMPTY_GPA_DATA: GpaData = {
+  currentGpa: 0,
+  semesterGpa: 0,
+  totalCredits: 0,
+  courses: [],
 };
-
-const MOCK_HISTORY: GpaHistoryEntry[] = [
-  { semester: "Fall 23", gpa: 3.2, credits: 15 },
-  { semester: "Spr 24", gpa: 3.35, credits: 16 },
-  { semester: "Fall 24", gpa: 3.47, credits: 17 },
-  { semester: "Spr 25", gpa: 3.52, credits: 20 },
-];
 
 /* -------------------------------------------------------------------------- */
 /*  Section Wrapper                                                            */
@@ -163,17 +110,17 @@ export default function GpaLabPage() {
         if (gpaRes.status === "fulfilled" && gpaRes.value.ok) {
           setGpaData(await gpaRes.value.json());
         } else {
-          setGpaData(MOCK_GPA_DATA);
+          setGpaData(EMPTY_GPA_DATA);
         }
 
         if (historyRes.status === "fulfilled" && historyRes.value.ok) {
           setHistory(await historyRes.value.json());
         } else {
-          setHistory(MOCK_HISTORY);
+          setHistory([]);
         }
       } catch {
-        setGpaData(MOCK_GPA_DATA);
-        setHistory(MOCK_HISTORY);
+        setGpaData(EMPTY_GPA_DATA);
+        setHistory([]);
       } finally {
         setLoading(false);
       }

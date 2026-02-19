@@ -169,18 +169,18 @@ function StatCardItem({
 /* -------------------------------------------------------------------------- */
 
 export function StatsGrid({
-  gpa = 3.72,
-  gpaTrend = "+0.05",
-  credits = 16,
-  tasksDue = 5,
-  draftsReady = 3,
+  gpa = 0,
+  gpaTrend,
+  credits = 0,
+  tasksDue = 0,
+  draftsReady = 0,
 }: StatsGridProps) {
   const cards: StatCard[] = [
     {
       label: "Current GPA",
       value: gpa,
       decimals: 2,
-      trend: { value: gpaTrend, direction: "up" },
+      trend: gpaTrend ? { value: gpaTrend, direction: gpaTrend.startsWith("-") ? "down" as const : "up" as const } : undefined,
       icon: TrendingUp,
     },
     {

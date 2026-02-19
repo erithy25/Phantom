@@ -10,13 +10,14 @@ import { useThemeStore, useNotificationStore, useSidebarStore } from "@/store";
 const routeTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/courses": "Courses",
-  "/phantom-ai": "Phantom AI",
-  "/gpa-lab": "GPA Lab",
+  "/chat": "Phantom AI",
+  "/gpa": "GPA Lab",
   "/tasks": "Tasks",
   "/lectures": "Lectures",
   "/drafts": "Drafts",
-  "/campus-pulse": "Campus Pulse",
+  "/pulse": "Campus Pulse",
   "/settings": "Settings",
+  "/upgrade": "Upgrade to Pro",
 };
 
 function getCurrentDate(): string {
@@ -49,15 +50,15 @@ export function Header({ title }: HeaderProps) {
     "Phantom";
 
   const dateStr = getCurrentDate();
-  const userName = session?.user?.name || "Student";
-  const userRole = session?.user?.role || "FREE";
-  const initials = (userName || "S")
+  const userName = session?.user?.name || session?.user?.email?.split("@")[0] || "User";
+  const userEmail = session?.user?.email || "";
+  const initials = (userName || "U")
     .split(" ")
     .filter(Boolean)
     .map((n) => n[0])
     .join("")
     .toUpperCase()
-    .slice(0, 2) || "S";
+    .slice(0, 2) || "U";
 
   return (
     <header
@@ -160,8 +161,8 @@ export function Header({ title }: HeaderProps) {
             <span className="text-[12px] font-medium text-phantom-text truncate leading-tight">
               {userName}
             </span>
-            <span className="text-[10px] text-phantom-textMuted leading-tight capitalize">
-              {userRole.toLowerCase()}
+            <span className="text-[10px] text-phantom-textMuted leading-tight">
+              {userEmail}
             </span>
           </div>
         </div>

@@ -59,10 +59,13 @@ interface CampusPulseBannerProps {
 }
 
 export function CampusPulseBanner({
-  activeUsers = 142,
-  universityName = "your university",
+  activeUsers,
+  universityName,
 }: CampusPulseBannerProps) {
-  const count = useAnimatedCounter(activeUsers, 1200);
+  const count = useAnimatedCounter(activeUsers ?? 0, 1200);
+
+  // Don't render if no university is associated
+  if (!universityName) return null;
 
   return (
     <motion.div

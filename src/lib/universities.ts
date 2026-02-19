@@ -67,14 +67,6 @@ export function lookupUniversity(email: string): UniversityInfo | null {
     };
   }
 
-  // Fallback for non-university emails (e.g. gmail.com, outlook.com)
-  const name = domain
-    .split(".")[0]
-    .charAt(0).toUpperCase() + domain.split(".")[0].slice(1);
-
-  return {
-    name: `${name}`,
-    domain,
-    lmsType: null,
-  };
+  // Non-university emails (gmail, icloud, outlook, etc.) → no university
+  return null;
 }

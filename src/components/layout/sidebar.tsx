@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -22,12 +23,12 @@ import { useSidebarStore } from "@/store";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/courses", label: "Courses", icon: BookOpen },
-  { href: "/phantom-ai", label: "Phantom AI", icon: Sparkles },
-  { href: "/gpa-lab", label: "GPA Lab", icon: TrendingUp },
+  { href: "/chat", label: "Phantom AI", icon: Sparkles },
+  { href: "/gpa", label: "GPA Lab", icon: TrendingUp },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/lectures", label: "Lectures", icon: Headphones },
   { href: "/drafts", label: "Drafts", icon: FileEdit },
-  { href: "/campus-pulse", label: "Campus Pulse", icon: Users },
+  { href: "/pulse", label: "Campus Pulse", icon: Users },
 ];
 
 function PhantomGhostIcon({ className }: { className?: string }) {
@@ -53,6 +54,17 @@ function PhantomGhostIcon({ className }: { className?: string }) {
 export function Sidebar() {
   const pathname = usePathname();
   const { isCollapsed, toggle } = useSidebarStore();
+  const { data: session } = useSession();
+
+  const userName = session?.user?.name || session?.user?.email?.split("@")[0] || "User";
+  const userEmail = session?.user?.email || "";
+  const initials = userName
+    .split(" ")
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <motion.aside
@@ -166,7 +178,7 @@ export function Sidebar() {
         {/* User */}
         <div className="flex items-center gap-3 h-10 px-2.5">
           <div className="w-7 h-7 rounded-full bg-phantom-accentBg border border-phantom-border flex items-center justify-center shrink-0">
-            <span className="text-[11px] font-semibold text-phantom-text">P</span>
+            <span className="text-[11px] font-semibold text-phantom-text">{initials}</span>
           </div>
           <AnimatePresence mode="wait">
             {!isCollapsed && (
@@ -178,10 +190,10 @@ export function Sidebar() {
                 className="flex flex-col min-w-0"
               >
                 <span className="text-[12px] font-medium text-phantom-text truncate">
-                  Student
+                  {userName}
                 </span>
                 <span className="text-[10px] text-phantom-textMuted truncate">
-                  Free Plan
+                  {userEmail}
                 </span>
               </motion.div>
             )}

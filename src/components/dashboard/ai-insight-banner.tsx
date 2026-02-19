@@ -19,16 +19,30 @@ export function AiInsightBanner({ insight: insightProp }: AiInsightBannerProps) 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const indexRef = useRef(0);
 
-  // Fetch insight if not provided as prop
+  // Fetch fresh insight from AI on each page load
   useEffect(() => {
     if (insightProp) {
       setFullText(insightProp);
       return;
     }
 
-    const fallback =
-      "Based on your recent activity, you're on track to raise your GPA by 0.15 this semester. Your CS 301 assignment due Thursday has a draft ready for review.";
-    setFullText(fallback);
+    async function fetchInsight() {
+      try {
+        const res = await fetch("/api/dashboard/insight");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.insight) {
+            setFullText(data.insight);
+            return;
+          }
+        }
+      } catch {
+        // silently fail
+      }
+      setFullText("Welcome to Phantom! Add your courses and tasks to get personalized AI insights here.");
+    }
+
+    fetchInsight();
   }, [insightProp]);
 
   // Start typing animation once fullText is ready
