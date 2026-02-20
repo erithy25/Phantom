@@ -50,7 +50,16 @@ export default function ChatPage() {
         const res = await fetch(`/api/chat/conversations/${id}`);
         if (!res.ok) throw new Error("Failed to fetch messages");
         const data = await res.json();
-        setMessages(data.messages ?? []);
+        const conv = data.conversation;
+        const msgs: ChatMessage[] = (conv?.messages ?? []).map(
+          (m: { id: string; role: string; content: string; createdAt: string }) => ({
+            id: m.id,
+            role: m.role === "assistant" ? "phantom" : m.role,
+            content: m.content,
+            createdAt: m.createdAt,
+          })
+        );
+        setMessages(msgs);
       } catch {
         setMessages([]);
       } finally {
@@ -66,6 +75,25 @@ export default function ChatPage() {
     setMessages([]);
   }, [setActiveConversation]);
 
+  /* ----------------------------- Delete conversation ----------------------------- */
+  const deleteConversation = useCallback(
+    async (conversationId: string) => {
+      setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+      if (activeConversationId === conversationId) {
+        setActiveConversation(null);
+        setMessages([]);
+      }
+      try {
+        await fetch(`/api/chat/conversations/${conversationId}`, {
+          method: "DELETE",
+        });
+      } catch {
+        fetchConversations();
+      }
+    },
+    [activeConversationId, setActiveConversation, fetchConversations]
+  );
+
   /* ----------------------------- Pin / unpin ----------------------------- */
   const togglePin = useCallback(
     async (conversationId: string) => {
@@ -79,19 +107,18 @@ export default function ChatPage() {
 
       try {
         await fetch(`/api/chat/conversations/${conversationId}`, {
-          method: "PATCH",
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ isPinned: !target.isPinned }),
         });
       } catch {
-        /* revert on error */
         setConversations(conversations);
       }
     },
     [conversations]
   );
 
-  /* ----------------------------- On message sent (refresh sidebar title) ----------------------------- */
+  /* ----------------------------- On message sent ----------------------------- */
   const handleConversationUpdate = useCallback(
     (updatedConversation: Conversation) => {
       setConversations((prev) => {
@@ -118,41 +145,51 @@ export default function ChatPage() {
         className={cn(
           "fixed top-[72px] left-4 z-50 md:hidden",
           "flex h-9 w-9 items-center justify-center",
-          "rounded-sm bg-phantom-bgCard border border-phantom-border",
+          "rounded-xl bg-phantom-bgCard border border-phantom-border",
           "text-phantom-textSecondary hover:text-phantom-text",
-          "transition-colors"
+          "shadow-sm transition-colors"
         )}
         aria-label="Toggle chat sidebar"
       >
         {isSidebarOpen ? <X size={16} /> : <Menu size={16} />}
       </button>
 
-      {/* ---- Sidebar ---- */}
+      {/* ---- Mobile sidebar ---- */}
       <AnimatePresence>
-        {(isSidebarOpen || typeof window === "undefined") && (
-          <motion.div
-            initial={{ x: -300, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -300, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="fixed inset-y-0 left-0 top-16 z-40 w-[300px] md:relative md:top-0 md:z-auto"
-          >
-            <ChatSidebar
-              conversations={conversations}
-              activeId={activeConversationId}
-              isLoading={isLoading}
-              onSelect={loadConversation}
-              onNewChat={startNewConversation}
-              onTogglePin={togglePin}
-              onClose={() => {
-                if (isSidebarOpen) toggleSidebar();
-              }}
+        {isSidebarOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-30 bg-black/50 md:hidden"
+              onClick={toggleSidebar}
             />
-          </motion.div>
+            <motion.div
+              initial={{ x: -300, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -300, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="fixed inset-y-0 left-0 top-16 z-40 w-[300px] md:hidden"
+            >
+              <ChatSidebar
+                conversations={conversations}
+                activeId={activeConversationId}
+                isLoading={isLoading}
+                onSelect={loadConversation}
+                onNewChat={startNewConversation}
+                onTogglePin={togglePin}
+                onDelete={deleteConversation}
+                onClose={() => {
+                  if (isSidebarOpen) toggleSidebar();
+                }}
+              />
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
-      {/* ---- Desktop sidebar (always visible) ---- */}
+      {/* ---- Desktop sidebar ---- */}
       <div className="hidden md:block w-[300px] flex-shrink-0 border-r border-phantom-border">
         <ChatSidebar
           conversations={conversations}
@@ -161,16 +198,9 @@ export default function ChatPage() {
           onSelect={loadConversation}
           onNewChat={startNewConversation}
           onTogglePin={togglePin}
+          onDelete={deleteConversation}
         />
       </div>
-
-      {/* ---- Mobile overlay ---- */}
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/50 md:hidden"
-          onClick={toggleSidebar}
-        />
-      )}
 
       {/* ---- Main chat area ---- */}
       <div className="flex-1 min-w-0">

@@ -8,7 +8,9 @@ import {
   Pin,
   PinOff,
   MessageSquare,
+  Trash2,
   X,
+  Ghost,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -56,6 +58,7 @@ interface ChatSidebarProps {
   onSelect: (id: string) => void;
   onNewChat: () => void;
   onTogglePin: (id: string) => void;
+  onDelete?: (id: string) => void;
   onClose?: () => void;
 }
 
@@ -70,11 +73,11 @@ export function ChatSidebar({
   onSelect,
   onNewChat,
   onTogglePin,
+  onDelete,
   onClose,
 }: ChatSidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
-  /* ---- Filter by search ---- */
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return conversations;
     const q = searchQuery.toLowerCase();
@@ -85,7 +88,6 @@ export function ChatSidebar({
     );
   }, [conversations, searchQuery]);
 
-  /* ---- Group conversations ---- */
   const grouped = useMemo(() => {
     const groups: Record<DateGroup, Conversation[]> = {
       Pinned: [],
@@ -100,7 +102,6 @@ export function ChatSidebar({
       groups[group].push(conv);
     }
 
-    /* Sort each group by most recent first */
     for (const key of Object.keys(groups) as DateGroup[]) {
       groups[key].sort(
         (a, b) =>
@@ -131,15 +132,18 @@ export function ChatSidebar({
     <div className="flex flex-col h-full bg-phantom-bgSecondary">
       {/* ---- Header ---- */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-phantom-border">
-        <h3 className="text-[13px] font-semibold text-phantom-text tracking-tight">
-          Conversations
-        </h3>
+        <div className="flex items-center gap-2">
+          <Ghost size={16} className="text-phantom-textSecondary" />
+          <h3 className="text-sm font-semibold text-phantom-text tracking-tight">
+            Chats
+          </h3>
+        </div>
         <div className="flex items-center gap-1">
           <button
             onClick={onNewChat}
             className={cn(
               "flex items-center justify-center",
-              "w-8 h-8 rounded-sm",
+              "w-8 h-8 rounded-lg",
               "text-phantom-textTertiary hover:text-phantom-text",
               "hover:bg-phantom-bgCard",
               "transition-colors"
@@ -153,7 +157,7 @@ export function ChatSidebar({
               onClick={onClose}
               className={cn(
                 "flex items-center justify-center md:hidden",
-                "w-8 h-8 rounded-sm",
+                "w-8 h-8 rounded-lg",
                 "text-phantom-textTertiary hover:text-phantom-text",
                 "hover:bg-phantom-bgCard",
                 "transition-colors"
@@ -171,21 +175,21 @@ export function ChatSidebar({
         <div
           className={cn(
             "flex items-center gap-2",
-            "h-8 px-2.5 rounded-md",
+            "h-9 px-3 rounded-xl",
             "bg-phantom-bgInput border border-phantom-border",
             "focus-within:border-phantom-borderHover",
             "transition-colors"
           )}
         >
-          <Search size={13} className="text-phantom-textMuted flex-shrink-0" />
+          <Search size={14} className="text-phantom-textMuted flex-shrink-0" />
           <input
             type="text"
-            placeholder="Search conversations..."
+            placeholder="Search chats..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className={cn(
               "flex-1 bg-transparent border-none outline-none",
-              "text-[12px] text-phantom-text",
+              "text-sm text-phantom-text",
               "placeholder:text-phantom-textMuted"
             )}
           />
@@ -206,28 +210,30 @@ export function ChatSidebar({
           <div className="space-y-2 px-2 pt-2">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="space-y-1.5 py-2">
-                <Skeleton className="h-3 w-3/4" />
+                <Skeleton className="h-3.5 w-3/4" />
                 <Skeleton className="h-2.5 w-1/3" />
               </div>
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 px-4">
-            <MessageSquare
-              size={24}
-              className="text-phantom-textMuted mb-2"
-            />
-            <p className="text-caption text-phantom-textMuted text-center">
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="w-12 h-12 rounded-2xl bg-phantom-bgCard border border-phantom-border flex items-center justify-center mb-3">
+              <MessageSquare
+                size={20}
+                className="text-phantom-textMuted"
+              />
+            </div>
+            <p className="text-sm text-phantom-textMuted text-center mb-1">
               {searchQuery
-                ? "No conversations match your search"
+                ? "No chats match your search"
                 : "No conversations yet"}
             </p>
             {!searchQuery && (
               <button
                 onClick={onNewChat}
                 className={cn(
-                  "mt-3 px-3 py-1.5 rounded-md",
-                  "text-[12px] font-medium",
+                  "mt-3 px-4 py-2 rounded-xl",
+                  "text-sm font-medium",
                   "bg-phantom-bgCard border border-phantom-border",
                   "text-phantom-textSecondary hover:text-phantom-text",
                   "hover:border-phantom-borderHover",
@@ -239,76 +245,100 @@ export function ChatSidebar({
             )}
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {groupOrder.map((group) => {
               const items = grouped[group];
               if (items.length === 0) return null;
 
               return (
                 <div key={group}>
-                  <p className="px-2 pt-3 pb-1 text-[10px] font-mono font-medium uppercase tracking-[0.08em] text-phantom-textMuted">
+                  <p className="px-3 pt-4 pb-1.5 text-[10px] font-mono font-medium uppercase tracking-[0.1em] text-phantom-textMuted">
                     {group}
                   </p>
                   <AnimatePresence mode="popLayout">
                     {items.map((conv) => (
-                      <motion.button
+                      <motion.div
                         key={conv.id}
                         layout
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        onClick={() => handleSelect(conv.id)}
-                        className={cn(
-                          "group w-full flex items-center gap-2",
-                          "px-2.5 py-2 rounded-md",
-                          "text-left",
-                          "transition-colors duration-150",
-                          activeId === conv.id
-                            ? "bg-phantom-bgCard border border-phantom-border"
-                            : "hover:bg-phantom-bgCard/50 border border-transparent"
-                        )}
+                        className="group relative"
                       >
-                        <div className="flex-1 min-w-0">
-                          <p
-                            className={cn(
-                              "text-[12px] font-medium truncate",
-                              activeId === conv.id
-                                ? "text-phantom-text"
-                                : "text-phantom-textSecondary"
-                            )}
-                          >
-                            {conv.title || "New conversation"}
-                          </p>
-                          <p className="text-[10px] font-mono text-phantom-textMuted mt-0.5">
-                            {formatTime(conv.updatedAt)}
-                          </p>
-                        </div>
-
-                        {/* Pin / Unpin button */}
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onTogglePin(conv.id);
-                          }}
+                          onClick={() => handleSelect(conv.id)}
                           className={cn(
-                            "flex items-center justify-center",
-                            "w-6 h-6 rounded flex-shrink-0",
-                            "transition-all",
-                            conv.isPinned
-                              ? "text-phantom-textSecondary hover:text-phantom-textMuted"
-                              : "opacity-0 group-hover:opacity-100 text-phantom-textMuted hover:text-phantom-textSecondary"
+                            "w-full flex items-center gap-2.5",
+                            "px-3 py-2.5 rounded-xl",
+                            "text-left",
+                            "transition-all duration-150",
+                            activeId === conv.id
+                              ? "bg-phantom-bgCard border border-phantom-border"
+                              : "hover:bg-phantom-bgCard/50 border border-transparent"
                           )}
-                          aria-label={
-                            conv.isPinned ? "Unpin conversation" : "Pin conversation"
-                          }
                         >
-                          {conv.isPinned ? (
-                            <PinOff size={12} />
-                          ) : (
-                            <Pin size={12} />
-                          )}
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className={cn(
+                                "text-[13px] font-medium truncate",
+                                activeId === conv.id
+                                  ? "text-phantom-text"
+                                  : "text-phantom-textSecondary"
+                              )}
+                            >
+                              {conv.title || "New conversation"}
+                            </p>
+                            <p className="text-[10px] font-mono text-phantom-textMuted mt-0.5">
+                              {formatTime(conv.updatedAt)}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-0.5 flex-shrink-0">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onTogglePin(conv.id);
+                              }}
+                              className={cn(
+                                "flex items-center justify-center",
+                                "w-6 h-6 rounded-md",
+                                "transition-all",
+                                conv.isPinned
+                                  ? "text-phantom-textSecondary hover:text-phantom-textMuted"
+                                  : "opacity-0 group-hover:opacity-100 text-phantom-textMuted hover:text-phantom-textSecondary"
+                              )}
+                              aria-label={
+                                conv.isPinned ? "Unpin" : "Pin"
+                              }
+                            >
+                              {conv.isPinned ? (
+                                <PinOff size={12} />
+                              ) : (
+                                <Pin size={12} />
+                              )}
+                            </button>
+
+                            {onDelete && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDelete(conv.id);
+                                }}
+                                className={cn(
+                                  "flex items-center justify-center",
+                                  "w-6 h-6 rounded-md",
+                                  "opacity-0 group-hover:opacity-100",
+                                  "text-phantom-textMuted hover:text-phantom-danger",
+                                  "transition-all"
+                                )}
+                                aria-label="Delete conversation"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </div>
                         </button>
-                      </motion.button>
+                      </motion.div>
                     ))}
                   </AnimatePresence>
                 </div>

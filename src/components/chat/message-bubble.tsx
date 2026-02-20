@@ -2,9 +2,9 @@
 
 import { memo, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Ghost } from "lucide-react";
+import { Ghost, Copy, Check } from "lucide-react";
+import { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { RichContentCard } from "@/components/chat/rich-content-card";
 import type { ChatMessage } from "@/types";
 
 /* -------------------------------------------------------------------------- */
@@ -15,16 +15,16 @@ function renderMarkdown(text: string): React.ReactNode[] {
   const lines = text.split("\n");
   const elements: React.ReactNode[] = [];
   let listBuffer: string[] = [];
+  let orderedListBuffer: string[] = [];
   let codeBlock = false;
   let codeContent = "";
-  let codeLang = "";
 
   const flushList = () => {
     if (listBuffer.length > 0) {
       elements.push(
         <ul
           key={`list-${elements.length}`}
-          className="list-disc list-inside space-y-0.5 my-1.5 text-[13px] leading-[1.7]"
+          className="list-disc list-inside space-y-1 my-2 text-sm leading-relaxed"
         >
           {listBuffer.map((item, i) => (
             <li key={i} className="text-phantom-text">
@@ -35,12 +35,26 @@ function renderMarkdown(text: string): React.ReactNode[] {
       );
       listBuffer = [];
     }
+    if (orderedListBuffer.length > 0) {
+      elements.push(
+        <ol
+          key={`olist-${elements.length}`}
+          className="list-decimal list-inside space-y-1 my-2 text-sm leading-relaxed"
+        >
+          {orderedListBuffer.map((item, i) => (
+            <li key={i} className="text-phantom-text">
+              {renderInline(item)}
+            </li>
+          ))}
+        </ol>
+      );
+      orderedListBuffer = [];
+    }
   };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    /* Code block toggle */
     if (line.startsWith("```")) {
       if (codeBlock) {
         flushList();
@@ -48,9 +62,9 @@ function renderMarkdown(text: string): React.ReactNode[] {
           <pre
             key={`code-${i}`}
             className={cn(
-              "my-2 p-3 rounded-md overflow-x-auto",
-              "bg-phantom-bgSecondary border border-phantom-border",
-              "font-mono text-[12px] leading-[1.6] text-phantom-textSecondary"
+              "my-3 p-4 rounded-xl overflow-x-auto",
+              "bg-black/30 border border-phantom-border",
+              "font-mono text-[13px] leading-relaxed text-phantom-textSecondary"
             )}
           >
             <code>{codeContent.trim()}</code>
@@ -58,11 +72,9 @@ function renderMarkdown(text: string): React.ReactNode[] {
         );
         codeBlock = false;
         codeContent = "";
-        codeLang = "";
       } else {
         flushList();
         codeBlock = true;
-        codeLang = line.slice(3).trim();
       }
       continue;
     }
@@ -72,13 +84,12 @@ function renderMarkdown(text: string): React.ReactNode[] {
       continue;
     }
 
-    /* Headings */
     if (line.startsWith("### ")) {
       flushList();
       elements.push(
         <h4
           key={`h3-${i}`}
-          className="text-[13px] font-semibold text-phantom-text mt-3 mb-1"
+          className="text-sm font-semibold text-phantom-text mt-4 mb-1.5"
         >
           {renderInline(line.slice(4))}
         </h4>
@@ -90,7 +101,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
       elements.push(
         <h3
           key={`h2-${i}`}
-          className="text-[14px] font-semibold text-phantom-text mt-3 mb-1"
+          className="text-[15px] font-semibold text-phantom-text mt-4 mb-1.5"
         >
           {renderInline(line.slice(3))}
         </h3>
@@ -102,7 +113,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
       elements.push(
         <h2
           key={`h1-${i}`}
-          className="text-[15px] font-bold text-phantom-text mt-3 mb-1"
+          className="text-base font-bold text-phantom-text mt-4 mb-1.5"
         >
           {renderInline(line.slice(2))}
         </h2>
@@ -110,30 +121,28 @@ function renderMarkdown(text: string): React.ReactNode[] {
       continue;
     }
 
-    /* Unordered lists */
     if (/^[-*]\s/.test(line)) {
+      if (orderedListBuffer.length > 0) flushList();
       listBuffer.push(line.replace(/^[-*]\s/, ""));
       continue;
     }
 
-    /* Ordered lists */
     if (/^\d+\.\s/.test(line)) {
-      listBuffer.push(line.replace(/^\d+\.\s/, ""));
+      if (listBuffer.length > 0) flushList();
+      orderedListBuffer.push(line.replace(/^\d+\.\s/, ""));
       continue;
     }
 
-    /* Empty line */
     if (line.trim() === "") {
       flushList();
       continue;
     }
 
-    /* Paragraph */
     flushList();
     elements.push(
       <p
         key={`p-${i}`}
-        className="text-[13px] leading-[1.7] text-phantom-text my-0.5"
+        className="text-sm leading-relaxed text-phantom-text my-1"
       >
         {renderInline(line)}
       </p>
@@ -144,10 +153,8 @@ function renderMarkdown(text: string): React.ReactNode[] {
   return elements;
 }
 
-/* ---- Inline formatting (bold, italic, code, links) ---- */
 function renderInline(text: string): React.ReactNode {
   const parts: React.ReactNode[] = [];
-  /* Pattern: **bold**, *italic*, `code`, [text](url) */
   const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)|(\[(.+?)\]\((.+?)\))/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -158,31 +165,27 @@ function renderInline(text: string): React.ReactNode {
     }
 
     if (match[1]) {
-      /* Bold */
       parts.push(
         <strong key={match.index} className="font-semibold">
           {match[2]}
         </strong>
       );
     } else if (match[3]) {
-      /* Italic */
       parts.push(
         <em key={match.index} className="italic">
           {match[4]}
         </em>
       );
     } else if (match[5]) {
-      /* Inline code */
       parts.push(
         <code
           key={match.index}
-          className="px-1 py-0.5 rounded bg-phantom-bgSecondary font-mono text-[12px] text-phantom-textSecondary"
+          className="px-1.5 py-0.5 rounded-md bg-black/20 font-mono text-[13px] text-phantom-textSecondary"
         >
           {match[6]}
         </code>
       );
     } else if (match[7]) {
-      /* Link */
       parts.push(
         <a
           key={match.index}
@@ -218,67 +221,80 @@ export const MessageBubble = memo(function MessageBubble({
   message,
 }: MessageBubbleProps) {
   const isUser = message.role === "user";
+  const [copied, setCopied] = useState(false);
 
   const renderedContent = useMemo(
     () => renderMarkdown(message.content),
     [message.content]
   );
 
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(message.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [message.content]);
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
       className={cn(
-        "flex gap-2.5 py-2",
+        "flex gap-3 py-3",
         isUser ? "justify-end" : "justify-start"
       )}
     >
-      {/* ---- Phantom avatar (left, for phantom messages) ---- */}
       {!isUser && (
         <div
           className={cn(
             "flex items-center justify-center flex-shrink-0 mt-0.5",
-            "w-7 h-7 rounded-[6px]",
-            "bg-black border border-phantom-border"
+            "w-8 h-8 rounded-xl",
+            "bg-gradient-to-br from-phantom-bgCard to-phantom-bgSecondary",
+            "border border-phantom-border"
           )}
         >
-          <Ghost size={14} className="text-white" />
+          <Ghost size={16} className="text-phantom-textSecondary" />
         </div>
       )}
 
-      {/* ---- Message bubble ---- */}
       <div
         className={cn(
-          "max-w-[85%] md:max-w-[70%]",
-          "px-3 py-2.5",
-          "rounded-lg",
+          "max-w-[85%] md:max-w-[75%] group relative",
           isUser
-            ? "bg-phantom-text/[0.08] text-phantom-text"
-            : "bg-phantom-bgCard border border-phantom-border text-phantom-text"
+            ? "bg-phantom-text/[0.08] rounded-2xl rounded-br-md px-4 py-3"
+            : "bg-phantom-bgCard border border-phantom-border rounded-2xl rounded-tl-md px-4 py-3"
         )}
       >
         <div className="space-y-0.5">{renderedContent}</div>
 
-        {/* ---- Rich content card ---- */}
-        {message.richContent && (
-          <div className="mt-3">
-            <RichContentCard richContent={message.richContent} />
-          </div>
+        {/* Copy button for phantom messages */}
+        {!isUser && message.content.length > 0 && (
+          <button
+            onClick={handleCopy}
+            className={cn(
+              "absolute -bottom-3 right-2",
+              "flex items-center gap-1 px-2 py-1 rounded-lg",
+              "bg-phantom-bgCard border border-phantom-border",
+              "text-[10px] text-phantom-textMuted",
+              "hover:text-phantom-text hover:border-phantom-borderHover",
+              "opacity-0 group-hover:opacity-100",
+              "transition-all duration-200",
+              "shadow-sm"
+            )}
+          >
+            {copied ? (
+              <>
+                <Check size={10} />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy size={10} />
+                Copy
+              </>
+            )}
+          </button>
         )}
-
-        {/* ---- Timestamp ---- */}
-        <p
-          className={cn(
-            "mt-1.5 text-[10px] font-mono",
-            isUser ? "text-phantom-textMuted text-right" : "text-phantom-textMuted"
-          )}
-        >
-          {new Date(message.createdAt).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </p>
       </div>
     </motion.div>
   );
