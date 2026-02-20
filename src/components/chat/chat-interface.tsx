@@ -119,8 +119,8 @@ export function ChatInterface({
         });
 
         if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || "Failed to send message");
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Server error (${res.status})`);
         }
 
         const newConversationId = res.headers.get("X-Conversation-Id");

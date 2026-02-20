@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { chatMessageSchema } from "@/lib/validations";
 import { generateChatResponse } from "@/lib/ai";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -135,68 +137,87 @@ export async function POST(request: Request) {
       content: msg.content,
     }));
 
-    const stream = await generateChatResponse(message, {
-      studentName: session.user.name || undefined,
-      courses: courses.map((c) => ({
-        name: c.name,
-        code: c.code,
-        professorName: c.professorName || undefined,
-        currentGrade: c.currentGrade || undefined,
-        letterGrade: c.letterGrade || undefined,
-      })),
-      recentLectures: recentLectures.map((l) => ({
-        courseName: l.course.name,
-        title: l.title || undefined,
-        summary: l.summary || undefined,
-      })),
-      upcomingAssignments: upcomingAssignments.map((a) => ({
-        title: a.title,
-        courseName: a.course.name,
-        dueDate: a.dueDate?.toISOString(),
-        status: a.status,
-      })),
-      gpa: currentGpa,
-      conversationHistory,
+    let aiStream: ReadableStream;
+    try {
+      aiStream = await generateChatResponse(message, {
+        studentName: session.user.name || undefined,
+        courses: courses.map((c) => ({
+          name: c.name,
+          code: c.code,
+          professorName: c.professorName || undefined,
+          currentGrade: c.currentGrade || undefined,
+          letterGrade: c.letterGrade || undefined,
+        })),
+        recentLectures: recentLectures.map((l) => ({
+          courseName: l.course.name,
+          title: l.title || undefined,
+          summary: l.summary || undefined,
+        })),
+        upcomingAssignments: upcomingAssignments.map((a) => ({
+          title: a.title,
+          courseName: a.course.name,
+          dueDate: a.dueDate?.toISOString(),
+          status: a.status,
+        })),
+        gpa: currentGpa,
+        conversationHistory,
+      });
+    } catch (aiError) {
+      console.error("AI generation error:", aiError);
+      return NextResponse.json(
+        { error: "AI service is currently unavailable. Please check that the API key is configured." },
+        { status: 503 }
+      );
+    }
+
+    // Create a pass-through stream that collects chunks for DB save
+    // This avoids using tee() which can cause issues in serverless
+    const chunks: string[] = [];
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    const convId = conversation.id;
+
+    const responseStream = new ReadableStream({
+      async start(controller) {
+        const reader = aiStream.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const text = decoder.decode(value, { stream: true });
+            chunks.push(text);
+            controller.enqueue(encoder.encode(text));
+          }
+          controller.close();
+
+          // Save the complete response to DB after streaming finishes
+          const fullResponse = chunks.join("");
+          if (fullResponse.trim()) {
+            await db.message.create({
+              data: {
+                conversationId: convId,
+                role: "assistant",
+                content: fullResponse,
+              },
+            });
+            await db.conversation.update({
+              where: { id: convId },
+              data: { updatedAt: new Date() },
+            });
+          }
+        } catch (err) {
+          console.error("Stream error:", err);
+          controller.close();
+        }
+      },
     });
-
-    const [responseStream, dbStream] = stream.tee();
-
-    const collectResponse = async () => {
-      const reader = dbStream.getReader();
-      const chunks: string[] = [];
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(decoder.decode(value, { stream: true }));
-      }
-
-      const fullResponse = chunks.join("");
-
-      await db.message.create({
-        data: {
-          conversationId: conversation.id,
-          role: "assistant",
-          content: fullResponse,
-        },
-      });
-
-      await db.conversation.update({
-        where: { id: conversation.id },
-        data: { updatedAt: new Date() },
-      });
-    };
-
-    collectResponse().catch((err) =>
-      console.error("Failed to save assistant message:", err)
-    );
 
     return new Response(responseStream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Transfer-Encoding": "chunked",
         "X-Conversation-Id": conversation.id,
+        "Cache-Control": "no-cache, no-store",
       },
     });
   } catch (error) {

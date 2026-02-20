@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 const mobileNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/courses", label: "Courses", icon: BookOpen },
-  { href: "/chat", label: "AI", icon: Sparkles },
+  { href: "/phantom-ai", label: "AI", icon: Sparkles, newTab: true },
   { href: "/gpa", label: "GPA", icon: TrendingUp },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
 ];
@@ -41,6 +41,7 @@ export function MobileNav() {
           <Link
             key={item.href}
             href={item.href}
+            {...(item.newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
             className={cn(
               "relative flex flex-col items-center justify-center",
               "w-full h-full gap-0.5",

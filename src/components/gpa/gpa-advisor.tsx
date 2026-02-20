@@ -324,9 +324,9 @@ export function GpaAdvisor() {
     fetchAdvisor();
   }, []);
 
-  const maxImpact = data
+  const maxImpact = data && data.recommendations.length > 0
     ? Math.max(...data.recommendations.map((r) => r.gpaImpact))
-    : 0;
+    : 1;
 
   return (
     <div className="space-y-5">
@@ -396,14 +396,22 @@ export function GpaAdvisor() {
 
           {/* Recommendations */}
           <div className="space-y-3">
-            {data.recommendations.map((rec, i) => (
-              <RecommendationRow
-                key={rec.courseId}
-                rec={rec}
-                maxImpact={maxImpact}
-                index={i}
-              />
-            ))}
+            {data.recommendations.length > 0 ? (
+              data.recommendations.map((rec, i) => (
+                <RecommendationRow
+                  key={rec.courseId}
+                  rec={rec}
+                  maxImpact={maxImpact}
+                  index={i}
+                />
+              ))
+            ) : (
+              <div className="rounded-lg border border-phantom-border bg-phantom-bgTertiary/20 p-4 text-center">
+                <p className="text-sm text-phantom-textMuted">
+                  Add courses with grades to get personalized study recommendations.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Footer */}

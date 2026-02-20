@@ -193,6 +193,7 @@ export function GpaOverview({
       </div>
 
       {/* ---- Trend Chart ---- */}
+      {chartData.length > 0 ? (
       <div className="h-[180px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
@@ -271,6 +272,13 @@ export function GpaOverview({
           </AreaChart>
         </ResponsiveContainer>
       </div>
+      ) : (
+      <div className="h-[180px] w-full flex items-center justify-center rounded-lg border border-phantom-border bg-phantom-bgTertiary/20">
+        <p className="text-sm text-phantom-textMuted">
+          No GPA history yet. Add courses and grades to see your trend.
+        </p>
+      </div>
+      )}
     </div>
   );
 }

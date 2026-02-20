@@ -23,7 +23,7 @@ import { useSidebarStore } from "@/store";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/courses", label: "Courses", icon: BookOpen },
-  { href: "/chat", label: "Phantom AI", icon: Sparkles },
+  { href: "/phantom-ai", label: "Phantom AI", icon: Sparkles, newTab: true },
   { href: "/gpa", label: "GPA Lab", icon: TrendingUp },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/lectures", label: "Lectures", icon: Headphones },
@@ -108,6 +108,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              {...(item.newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
               className={cn(
                 "group flex items-center gap-3 h-10 rounded-sm px-2.5",
                 "transition-colors duration-150",
