@@ -15,7 +15,7 @@ const routeTitles: Record<string, string> = {
   "/tasks": "Tasks",
   "/lectures": "Lectures",
   "/drafts": "Drafts",
-  "/pulse": "Campus Pulse",
+  "/pulse": "Uni Live",
   "/settings": "Settings",
   "/upgrade": "Upgrade to Pro",
 };

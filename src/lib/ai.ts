@@ -1,8 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || "",
-});
+function getAnthropicClient(): Anthropic {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "ANTHROPIC_API_KEY is not configured. Please add your Claude API key to your environment variables."
+    );
+  }
+  return new Anthropic({ apiKey });
+}
 
 interface ChatContext {
   studentName?: string;
@@ -42,7 +48,7 @@ export async function generateChatResponse(
     { role: "user", content: message },
   ];
 
-  const stream = await anthropic.messages.stream({
+  const stream = await getAnthropicClient().messages.stream({
     model: "claude-sonnet-4-5-20250929",
     max_tokens: 4096,
     system: systemPrompt,
@@ -87,7 +93,7 @@ Writing tone: ${tone === "FORMAL" ? "Academic and formal" : tone === "CASUAL" ? 
 
 Generate a complete first draft that would score well based on the professor's known grading patterns.`;
 
-  const response = await anthropic.messages.create({
+  const response = await getAnthropicClient().messages.create({
     model: "claude-sonnet-4-5-20250929",
     max_tokens: 8192,
     system: systemPrompt,
@@ -112,7 +118,7 @@ export async function generateLectureSummary(
   flashcards: Array<{ question: string; answer: string }>;
   examQuestions: Array<{ question: string; answer: string; topic: string }>;
 }> {
-  const response = await anthropic.messages.create({
+  const response = await getAnthropicClient().messages.create({
     model: "claude-sonnet-4-5-20250929",
     max_tokens: 8192,
     system: `You are Phantom's Lecture Analysis Engine. Analyze lecture transcripts and generate comprehensive study materials.
@@ -159,7 +165,7 @@ export async function generateGpaAdvice(
     }>;
   }>
 ): Promise<string> {
-  const response = await anthropic.messages.create({
+  const response = await getAnthropicClient().messages.create({
     model: "claude-sonnet-4-5-20250929",
     max_tokens: 2048,
     system: `You are Phantom's GPA Advisor. Analyze the student's course data and provide actionable, prioritized study recommendations.
@@ -180,7 +186,7 @@ Focus on ROI: which courses and assignments will have the biggest GPA impact for
 export async function generateInsight(
   context: ChatContext
 ): Promise<string> {
-  const response = await anthropic.messages.create({
+  const response = await getAnthropicClient().messages.create({
     model: "claude-sonnet-4-5-20250929",
     max_tokens: 256,
     system: `You are Phantom's Insight Engine. Generate a single, specific, actionable insight about the student's academic situation.

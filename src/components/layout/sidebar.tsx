@@ -28,7 +28,7 @@ const navItems = [
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/lectures", label: "Lectures", icon: Headphones },
   { href: "/drafts", label: "Drafts", icon: FileEdit },
-  { href: "/pulse", label: "Campus Pulse", icon: Users },
+  { href: "/pulse", label: "Uni Live", icon: Users },
 ];
 
 function PhantomGhostIcon({ className }: { className?: string }) {

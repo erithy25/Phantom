@@ -107,14 +107,42 @@ export default function GpaLabPage() {
           fetch("/api/gpa/history"),
         ]);
 
+        // Map API response → GpaData (API returns { gpa, courses: [{gradePoints}] })
         if (gpaRes.status === "fulfilled" && gpaRes.value.ok) {
-          setGpaData(await gpaRes.value.json());
+          const raw = await gpaRes.value.json();
+          setGpaData({
+            currentGpa: raw.gpa ?? 0,
+            semesterGpa: raw.gpa ?? 0,
+            totalCredits: raw.totalCredits ?? 0,
+            courses: (raw.courses ?? []).map(
+              (c: { id: string; name: string; code: string; credits: number; currentGrade: number | null; letterGrade: string | null; gradePoints?: number }) => ({
+                id: c.id,
+                name: c.name,
+                code: c.code,
+                credits: c.credits,
+                currentGrade: c.currentGrade,
+                letterGrade: c.letterGrade,
+                gpaPoints: c.gradePoints ?? 0,
+              })
+            ),
+          });
         } else {
           setGpaData(EMPTY_GPA_DATA);
         }
 
+        // Map API response → GpaHistoryEntry[] (API returns { history: [{semesterGpa, ...}] })
         if (historyRes.status === "fulfilled" && historyRes.value.ok) {
-          setHistory(await historyRes.value.json());
+          const raw = await historyRes.value.json();
+          const entries = Array.isArray(raw) ? raw : raw.history ?? [];
+          setHistory(
+            entries.map(
+              (e: { semester: string; semesterGpa?: number; gpa?: number; credits: number }) => ({
+                semester: e.semester,
+                gpa: e.semesterGpa ?? e.gpa ?? 0,
+                credits: e.credits,
+              })
+            )
+          );
         } else {
           setHistory([]);
         }

@@ -1,69 +1,63 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   Users,
   TrendingUp,
   Zap,
-  Trophy,
+  BookOpen,
+  FileEdit,
+  Lightbulb,
+  Headphones,
   BarChart3,
-  ArrowUpRight,
-  ArrowDownRight,
-  Eye,
-  EyeOff,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { CampusPulseData, CoursePulseData } from "@/types";
 
 /* -------------------------------------------------------------------------- */
-/*  Animated Counter                                                           */
+/*  Types for API response                                                     */
 /* -------------------------------------------------------------------------- */
 
-function AnimatedCounter({
-  target,
-  duration = 2000,
-  prefix = "",
-  suffix = "",
-  decimals = 0,
-}: {
-  target: number;
-  duration?: number;
-  prefix?: string;
-  suffix?: string;
-  decimals?: number;
-}) {
-  const [count, setCount] = useState(0);
-  const hasAnimated = useRef(false);
+interface UniversityInfo {
+  id: string;
+  name: string;
+  domain: string;
+  studentCount: number | null;
+  logoUrl: string | null;
+}
 
-  useEffect(() => {
-    if (hasAnimated.current) return;
-    hasAnimated.current = true;
+interface PulseStats {
+  totalPhantomUsers: number;
+  activeUsersLast7Days: number;
+  weeklyGrowth: number;
+  totalDraftsGenerated: number;
+  totalFlashcardsCreated: number;
+  totalLecturesProcessed: number;
+}
 
-    const start = performance.now();
-    const step = (timestamp: number) => {
-      const elapsed = timestamp - start;
-      const progress = Math.min(elapsed / duration, 1);
-      // Ease-out cubic
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setCount(eased * target);
-      if (progress < 1) {
-        requestAnimationFrame(step);
-      }
-    };
-    requestAnimationFrame(step);
-  }, [target, duration]);
+interface PopularCourse {
+  code: string;
+  name: string;
+  studentCount: number;
+}
 
-  const display = decimals > 0 ? count.toFixed(decimals) : Math.round(count);
+interface PulseResponse {
+  university: UniversityInfo | null;
+  stats: PulseStats;
+  popularCourses: PopularCourse[];
+  pulseDate: string | null;
+}
 
+/* -------------------------------------------------------------------------- */
+/*  Exact Number Display                                                       */
+/* -------------------------------------------------------------------------- */
+
+function ExactNumber({ value, className }: { value: number; className?: string }) {
   return (
-    <span className="tabular-nums">
-      {prefix}
-      {typeof display === "number" ? display.toLocaleString() : display}
-      {suffix}
+    <span className={cn("tabular-nums font-mono", className)}>
+      {value.toLocaleString("de-DE")}
     </span>
   );
 }
@@ -72,34 +66,26 @@ function AnimatedCounter({
 /*  Stat Card                                                                  */
 /* -------------------------------------------------------------------------- */
 
-interface StatCardProps {
-  label: string;
-  value: number;
-  suffix?: string;
-  prefix?: string;
-  decimals?: number;
-  icon: React.ElementType;
-  trend?: number;
-  subtitle?: string;
-  index: number;
-}
-
 function StatCard({
   label,
   value,
   suffix,
-  prefix,
-  decimals,
   icon: Icon,
-  trend,
-  subtitle,
+  description,
   index,
-}: StatCardProps) {
+}: {
+  label: string;
+  value: number;
+  suffix?: string;
+  icon: React.ElementType;
+  description?: string;
+  index: number;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.1, duration: 0.4 }}
+      transition={{ delay: index * 0.08, duration: 0.35 }}
       className={cn(
         "rounded-lg border border-phantom-border",
         "bg-phantom-bgCard p-5",
@@ -107,7 +93,7 @@ function StatCard({
         "transition-all duration-200"
       )}
     >
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <div
           className={cn(
             "w-9 h-9 rounded-lg",
@@ -117,65 +103,31 @@ function StatCard({
         >
           <Icon className="w-4 h-4 text-phantom-textTertiary" />
         </div>
-        {trend !== undefined && (
-          <div
-            className={cn(
-              "flex items-center gap-0.5 text-[11px] font-mono",
-              trend >= 0 ? "text-phantom-success" : "text-phantom-danger"
-            )}
-          >
-            {trend >= 0 ? (
-              <ArrowUpRight className="w-3 h-3" />
-            ) : (
-              <ArrowDownRight className="w-3 h-3" />
-            )}
-            {Math.abs(trend).toFixed(1)}%
-          </div>
-        )}
       </div>
-
-      <div className="text-xl-metric text-phantom-text mb-1">
-        <AnimatedCounter
-          target={value}
-          prefix={prefix}
-          suffix={suffix}
-          decimals={decimals}
-        />
+      <div className="text-[28px] font-bold text-phantom-text leading-none mb-1">
+        <ExactNumber value={value} />
+        {suffix && <span className="text-lg text-phantom-textSecondary ml-0.5">{suffix}</span>}
       </div>
-      <span className="text-label-mono text-phantom-textMuted uppercase">
+      <span className="text-[12px] font-medium uppercase tracking-wider text-phantom-textMuted">
         {label}
       </span>
-      {subtitle && (
-        <p className="text-caption text-phantom-textTertiary mt-1">
-          {subtitle}
-        </p>
+      {description && (
+        <p className="text-[11px] text-phantom-textTertiary mt-1">{description}</p>
       )}
     </motion.div>
   );
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Course Pulse Row                                                           */
+/*  Course Row                                                                 */
 /* -------------------------------------------------------------------------- */
 
-function CoursePulseRow({
-  course,
-  index,
-}: {
-  course: CoursePulseData;
-  index: number;
-}) {
-  const percentage = Math.round(course.phantomPercentage);
-  const gradeAdvantage =
-    course.avgPhantomGrade != null && course.avgNonPhantomGrade != null
-      ? course.avgPhantomGrade - course.avgNonPhantomGrade
-      : null;
-
+function CourseRow({ course, index }: { course: PopularCourse; index: number }) {
   return (
     <motion.div
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.06, duration: 0.3 }}
+      transition={{ delay: index * 0.05, duration: 0.3 }}
       className={cn(
         "flex items-center gap-4 p-4 rounded-lg",
         "border border-phantom-border bg-phantom-bgCard",
@@ -183,125 +135,37 @@ function CoursePulseRow({
         "transition-all duration-200"
       )}
     >
-      {/* Adoption Meter */}
-      <div className="w-20 shrink-0">
-        <div className="text-large-metric text-phantom-text text-center tabular-nums">
-          <AnimatedCounter
-            target={percentage}
-            suffix="%"
-            duration={1200 + index * 200}
-          />
+      <div
+        className={cn(
+          "w-8 h-8 rounded-md flex items-center justify-center text-[11px] font-bold",
+          index === 0
+            ? "bg-phantom-text text-phantom-bg"
+            : index < 3
+              ? "bg-phantom-accentBg text-phantom-textSecondary border border-phantom-border"
+              : "bg-phantom-accentBg text-phantom-textTertiary border border-phantom-border"
+        )}
+      >
+        {index + 1}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-semibold text-phantom-text truncate">
+          {course.name}
+        </p>
+        <p className="text-[11px] text-phantom-textTertiary font-mono">
+          {course.code}
+        </p>
+      </div>
+
+      <div className="text-right shrink-0">
+        <div className="text-[15px] font-mono font-bold text-phantom-text tabular-nums">
+          <ExactNumber value={course.studentCount} />
         </div>
-        <div className="relative h-[3px] w-full bg-phantom-accentBg rounded-full mt-1.5 overflow-hidden">
-          <motion.div
-            className="h-full bg-phantom-text/70 rounded-full"
-            initial={{ width: 0 }}
-            animate={{ width: `${percentage}%` }}
-            transition={{ delay: index * 0.06 + 0.3, duration: 0.6 }}
-          />
-        </div>
-        <span className="text-micro text-phantom-textMuted block text-center mt-1">
-          adoption
+        <span className="text-[10px] text-phantom-textMuted uppercase">
+          Studenten
         </span>
       </div>
-
-      {/* Course Info */}
-      <div className="flex-1 min-w-0">
-        <p className="text-card-title text-phantom-text truncate">
-          Course {course.courseId.slice(0, 8)}
-        </p>
-        <div className="flex items-center gap-2 mt-1 text-caption text-phantom-textTertiary">
-          <span>
-            {course.phantomUsers}/{course.totalStudents} students
-          </span>
-          {course.topActions.length > 0 && (
-            <div className="flex items-center gap-1">
-              {course.topActions.slice(0, 2).map((action, i) => (
-                <Badge key={i} variant="default" className="text-[9px]">
-                  {action}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Grade Comparison */}
-      {gradeAdvantage != null && (
-        <div className="text-right shrink-0">
-          <div
-            className={cn(
-              "text-body font-mono font-bold",
-              gradeAdvantage > 0
-                ? "text-phantom-success"
-                : gradeAdvantage < 0
-                  ? "text-phantom-danger"
-                  : "text-phantom-textMuted"
-            )}
-          >
-            {gradeAdvantage > 0 ? "+" : ""}
-            {gradeAdvantage.toFixed(1)}%
-          </div>
-          <span className="text-micro text-phantom-textMuted">
-            vs non-Phantom
-          </span>
-        </div>
-      )}
     </motion.div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Leaderboard                                                                */
-/* -------------------------------------------------------------------------- */
-
-interface LeaderboardEntry {
-  rank: number;
-  name: string;
-  score: number;
-  badge: string;
-}
-
-function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
-  return (
-    <div className="space-y-1.5">
-      {entries.map((entry, i) => (
-        <motion.div
-          key={entry.rank}
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: i * 0.05, duration: 0.2 }}
-          className={cn(
-            "flex items-center gap-3 px-3 py-2.5 rounded-md",
-            "border border-phantom-border bg-phantom-bgCard",
-            "hover:border-phantom-borderHover transition-all duration-200",
-            i === 0 && "border-phantom-borderHover bg-phantom-bgCardHover"
-          )}
-        >
-          <span
-            className={cn(
-              "w-6 h-6 rounded-md flex items-center justify-center text-[11px] font-bold",
-              i === 0
-                ? "bg-phantom-text text-phantom-bg"
-                : i < 3
-                  ? "bg-phantom-accentBg text-phantom-textSecondary"
-                  : "bg-phantom-accentBg text-phantom-textTertiary"
-            )}
-          >
-            {entry.rank}
-          </span>
-          <span className="flex-1 text-body text-phantom-text truncate">
-            {entry.name}
-          </span>
-          <Badge variant="default" className="text-[10px]">
-            {entry.badge}
-          </Badge>
-          <span className="text-body font-mono text-phantom-textSecondary tabular-nums">
-            {entry.score.toLocaleString()}
-          </span>
-        </motion.div>
-      ))}
-    </div>
   );
 }
 
@@ -312,21 +176,21 @@ function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
 function PulseSkeleton() {
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[1, 2, 3].map((i) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
           <div
             key={i}
             className="rounded-lg border border-phantom-border p-5 space-y-4"
           >
             <Skeleton className="w-9 h-9 rounded-lg" />
-            <Skeleton className="h-12 w-24" />
+            <Skeleton className="h-8 w-24" />
             <Skeleton className="h-3 w-20" />
           </div>
         ))}
       </div>
       <div className="space-y-3">
-        {[1, 2, 3, 4].map((i) => (
-          <Skeleton key={i} className="h-20 w-full rounded-lg" />
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-16 w-full rounded-lg" />
         ))}
       </div>
     </div>
@@ -337,165 +201,222 @@ function PulseSkeleton() {
 /*  Page                                                                       */
 /* -------------------------------------------------------------------------- */
 
-export default function PulsePage() {
-  const [campusData, setCampusData] = useState<CampusPulseData | null>(null);
-  const [courseData, setCourseData] = useState<CoursePulseData[]>([]);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showLeaderboard, setShowLeaderboard] = useState(true);
+const POLL_INTERVAL = 30_000; // 30s auto-refresh
 
-  useEffect(() => {
-    async function fetchPulse() {
-      try {
-        const res = await fetch("/api/pulse/campus");
-        if (res.ok) {
-          const data = await res.json();
-          setCampusData(data.campus || data);
-          setCourseData(data.courses || []);
-          setLeaderboard(data.leaderboard || []);
-        }
-      } catch (err) {
-        console.error("Failed to fetch pulse data:", err);
-      } finally {
-        setLoading(false);
+export default function UniLivePage() {
+  const [data, setData] = useState<PulseResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchPulse = useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true);
+    try {
+      const res = await fetch("/api/pulse/campus", { cache: "no-store" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${res.status}`);
       }
+      const raw = await res.json();
+      setData({
+        university: raw.university || null,
+        stats: {
+          totalPhantomUsers: raw.stats?.totalPhantomUsers ?? 0,
+          activeUsersLast7Days: raw.stats?.activeUsersLast7Days ?? 0,
+          weeklyGrowth: raw.stats?.weeklyGrowth ?? 0,
+          totalDraftsGenerated: raw.stats?.totalDraftsGenerated ?? 0,
+          totalFlashcardsCreated: raw.stats?.totalFlashcardsCreated ?? 0,
+          totalLecturesProcessed: raw.stats?.totalLecturesProcessed ?? 0,
+        },
+        popularCourses: raw.popularCourses ?? [],
+        pulseDate: raw.pulseDate ?? null,
+      });
+      setLastUpdated(new Date());
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Fehler beim Laden");
+    } finally {
+      setLoading(false);
     }
-    fetchPulse();
   }, []);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchPulse(true);
+  }, [fetchPulse]);
+
+  // Auto-refresh polling every 30s
+  useEffect(() => {
+    const interval = setInterval(() => fetchPulse(false), POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [fetchPulse]);
+
+  const uniName = data?.university?.name || "Deine Uni";
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
+      <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-page-title text-phantom-text mb-1">
-            Campus Pulse
+            Uni Live
           </h1>
           <p className="text-body text-phantom-textSecondary">
-            Real-time campus analytics and Phantom adoption metrics.
+            Echtzeit-Statistiken{data?.university?.name ? ` — ${data.university.name}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-phantom-border ml-auto shrink-0">
-          <div className="w-2 h-2 rounded-full bg-phantom-success animate-pulse-dot" />
-          <span className="text-[11px] font-mono text-phantom-textTertiary">
-            Live
-          </span>
+        <div className="flex items-center gap-3 shrink-0">
+          {lastUpdated && (
+            <span className="text-[10px] font-mono text-phantom-textTertiary hidden sm:block">
+              {lastUpdated.toLocaleTimeString("de-DE")}
+            </span>
+          )}
+          <button
+            onClick={() => fetchPulse(false)}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md",
+              "text-[11px] text-phantom-textMuted",
+              "hover:text-phantom-text hover:bg-phantom-accentBg",
+              "border border-phantom-border",
+              "transition-colors duration-150"
+            )}
+          >
+            <RefreshCw className="w-3 h-3" />
+            Aktualisieren
+          </button>
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-phantom-success/30 bg-phantom-success/5">
+            <div className="w-2 h-2 rounded-full bg-phantom-success animate-pulse" />
+            <span className="text-[11px] font-mono text-phantom-success">
+              Live
+            </span>
+          </div>
         </div>
       </div>
 
       {loading ? (
         <PulseSkeleton />
-      ) : (
+      ) : error && !data ? (
+        <div className="rounded-lg border border-phantom-danger/20 bg-phantom-danger/5 p-6 text-center">
+          <p className="text-body text-phantom-danger">{error}</p>
+          <button
+            onClick={() => fetchPulse(true)}
+            className="mt-3 text-sm text-phantom-textSecondary hover:text-phantom-text underline"
+          >
+            Erneut versuchen
+          </button>
+        </div>
+      ) : data ? (
         <div className="space-y-8">
-          {/* Campus-Wide Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Stats Grid - exact numbers */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <StatCard
-              label="Total Users"
-              value={campusData?.totalUsers ?? 0}
+              label="Phantom Nutzer"
+              value={data.stats.totalPhantomUsers}
               icon={Users}
-              subtitle={
-                campusData?.universityName
-                  ? `at ${campusData.universityName}`
-                  : undefined
-              }
+              description={uniName}
               index={0}
             />
             <StatCard
-              label="Active Now"
-              value={campusData?.activeUsers ?? 0}
+              label="Aktiv (7 Tage)"
+              value={data.stats.activeUsersLast7Days}
               icon={Zap}
-              subtitle="students using Phantom right now"
+              description="Aktive Nutzer der letzten Woche"
               index={1}
             />
             <StatCard
-              label="Weekly Growth"
-              value={campusData?.weeklyGrowth ?? 0}
+              label="Wachstum"
+              value={data.stats.weeklyGrowth}
               suffix="%"
-              decimals={1}
               icon={TrendingUp}
-              trend={campusData?.weeklyGrowth}
-              subtitle="new students this week"
+              description="Wachstum diese Woche"
               index={2}
+            />
+            <StatCard
+              label="Erstellte Drafts"
+              value={data.stats.totalDraftsGenerated}
+              icon={FileEdit}
+              description="Generierte Entwürfe"
+              index={3}
+            />
+            <StatCard
+              label="Karteikarten"
+              value={data.stats.totalFlashcardsCreated}
+              icon={Lightbulb}
+              description="Erstellte Lernkarten"
+              index={4}
+            />
+            <StatCard
+              label="Vorlesungen"
+              value={data.stats.totalLecturesProcessed}
+              icon={Headphones}
+              description="Verarbeitete Vorlesungen"
+              index={5}
             />
           </div>
 
-          {/* Course-Level Heading */}
-          <div className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-phantom-textMuted" />
-            <span className="text-label-mono text-phantom-textMuted uppercase">
-              {campusData?.universityName
-                ? `${campusData.universityName} -- Course Adoption`
-                : "Course Adoption"}
-            </span>
+          {/* Popular Courses */}
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <BookOpen className="w-4 h-4 text-phantom-textMuted" />
+              <h2 className="text-[13px] font-semibold uppercase tracking-wider text-phantom-textMuted">
+                Top Kurse
+              </h2>
+              <span className="text-[11px] text-phantom-textTertiary font-mono ml-1">
+                {data.popularCourses.length} Kurse
+              </span>
+            </div>
+
+            {data.popularCourses.length > 0 ? (
+              <div className="space-y-2">
+                {data.popularCourses.map((course, i) => (
+                  <CourseRow
+                    key={`${course.code}-${i}`}
+                    course={course}
+                    index={i}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div
+                className={cn(
+                  "py-12 text-center rounded-lg",
+                  "border border-dashed border-phantom-border"
+                )}
+              >
+                <BarChart3 className="w-8 h-8 text-phantom-textMuted mx-auto mb-3" />
+                <p className="text-body text-phantom-textSecondary">
+                  Noch keine Kursdaten vorhanden.
+                </p>
+                <p className="text-caption text-phantom-textMuted mt-1">
+                  Kursdaten erscheinen, sobald genügend Studenten an deiner Uni Phantom nutzen.
+                </p>
+              </div>
+            )}
           </div>
 
-          {/* Course-Level Pulse */}
-          {courseData.length > 0 ? (
-            <div className="space-y-2">
-              {courseData.map((course, i) => (
-                <CoursePulseRow
-                  key={course.courseId}
-                  course={course}
-                  index={i}
-                />
-              ))}
-            </div>
-          ) : (
-            <div
-              className={cn(
-                "py-12 text-center rounded-lg",
-                "border border-dashed border-phantom-border"
-              )}
-            >
-              <BarChart3 className="w-8 h-8 text-phantom-textMuted mx-auto mb-3" />
-              <p className="text-body text-phantom-textSecondary">
-                No course data available yet.
-              </p>
-              <p className="text-caption text-phantom-textMuted mt-1">
-                Course-level stats will appear once enough students at your
-                university are using Phantom (minimum 20% adoption per course
-                for anonymity).
-              </p>
-            </div>
-          )}
-
-          {/* Leaderboard */}
-          {leaderboard.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-phantom-textTertiary" />
-                  <h2 className="text-section-heading text-phantom-text">
-                    Leaderboard
-                  </h2>
-                  <Badge variant="default" className="text-[10px]">
-                    Opt-In
-                  </Badge>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowLeaderboard(!showLeaderboard)}
-                >
-                  {showLeaderboard ? (
-                    <>
-                      <EyeOff className="w-3.5 h-3.5" />
-                      Hide
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="w-3.5 h-3.5" />
-                      Show
-                    </>
-                  )}
-                </Button>
+          {/* Uni Info Footer */}
+          {data.university && (
+            <div className="flex items-center gap-3 pt-4 border-t border-phantom-border">
+              <div className="w-8 h-8 rounded-md bg-phantom-accentBg border border-phantom-border flex items-center justify-center">
+                <span className="text-[11px] font-bold text-phantom-text">
+                  {data.university.name.charAt(0)}
+                </span>
               </div>
-
-              {showLeaderboard && <Leaderboard entries={leaderboard} />}
+              <div>
+                <p className="text-[12px] font-medium text-phantom-textSecondary">
+                  {data.university.name}
+                </p>
+                <p className="text-[10px] text-phantom-textMuted font-mono">
+                  {data.university.domain}
+                  {data.university.studentCount
+                    ? ` — ${data.university.studentCount.toLocaleString("de-DE")} Studenten`
+                    : ""}
+                </p>
+              </div>
             </div>
           )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
