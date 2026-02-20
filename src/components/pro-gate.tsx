@@ -14,7 +14,7 @@ export function ProGate({ children }: ProGateProps) {
   useEffect(() => {
     async function checkPlan() {
       try {
-        const res = await fetch("/api/subscription");
+        const res = await fetch("/api/subscription", { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
           if (data.plan === "PRO" || data.plan === "GHOST") {
