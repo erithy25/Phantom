@@ -59,10 +59,11 @@ export async function GET() {
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-5-20250929",
       max_tokens: 200,
+      system: `Generate one short, personalized academic insight based on the student's data. Keep it to 1-2 natural sentences. Be specific — reference actual course names, deadlines, or grades. No asterisks, no markdown, no special characters. Just clean, plain text that sounds like a smart friend giving a quick heads-up.`,
       messages: [
         {
           role: "user",
-          content: `You are Phantom, an AI academic assistant. Based on this student's current data, generate a short (1-2 sentences), personalized, actionable insight or tip. Be specific and helpful. Do NOT use generic advice. Student context:\n${context.join("\n")}`,
+          content: `Student context:\n${context.join("\n")}`,
         },
       ],
     });
