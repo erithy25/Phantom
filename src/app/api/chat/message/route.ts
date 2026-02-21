@@ -6,10 +6,11 @@ import { chatMessageSchema } from "@/lib/validations";
 import { generateChatResponse } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
-    // Fail fast if critical env vars are missing
+    // 1. Env check
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
         { error: "OPENAI_API_KEY is not configured. Add it in Vercel → Settings → Environment Variables, then redeploy." },
@@ -17,7 +18,17 @@ export async function POST(request: Request) {
       );
     }
 
-    const session = await getServerSession(authOptions);
+    // 2. Auth check
+    let session;
+    try {
+      session = await getServerSession(authOptions);
+    } catch (authErr) {
+      console.error("Auth error:", authErr);
+      return NextResponse.json(
+        { error: "Authentication service error. Check NEXTAUTH_SECRET is set in environment variables." },
+        { status: 500 }
+      );
+    }
 
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -26,6 +37,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // 3. Parse body
     let body;
     try {
       body = await request.json();
@@ -47,6 +59,7 @@ export async function POST(request: Request) {
 
     const { message, conversationId } = validation.data;
 
+    // 4. Fetch student context
     let courses, recentLectures, upcomingAssignments;
     try {
       [courses, recentLectures, upcomingAssignments] = await Promise.all([
@@ -95,6 +108,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // 5. Conversation management
     let conversation;
 
     try {
@@ -149,28 +163,39 @@ export async function POST(request: Request) {
       );
     }
 
-    const gpaData = await db.course.findMany({
-      where: {
-        userId: session.user.id,
-        isActive: true,
-        currentGrade: { not: null },
-      },
-      select: { currentGrade: true, credits: true },
-    });
-
+    // 6. GPA calculation
     let currentGpa: number | undefined;
-    if (gpaData.length > 0) {
-      const totalCredits = gpaData.reduce((sum, c) => sum + c.credits, 0);
-      if (totalCredits > 0) {
-        const totalPoints = gpaData.reduce((sum, c) => {
-          const grade = c.currentGrade || 0;
-          const gpaPoint = grade >= 93 ? 4.0 : grade >= 90 ? 3.7 : grade >= 87 ? 3.3 : grade >= 83 ? 3.0 : grade >= 80 ? 2.7 : grade >= 77 ? 2.3 : grade >= 73 ? 2.0 : grade >= 70 ? 1.7 : grade >= 67 ? 1.3 : grade >= 63 ? 1.0 : grade >= 60 ? 0.7 : 0.0;
-          return sum + c.credits * gpaPoint;
-        }, 0);
-        currentGpa = Math.round((totalPoints / totalCredits) * 100) / 100;
+    try {
+      const gpaData = await db.course.findMany({
+        where: {
+          userId: session.user.id,
+          isActive: true,
+          currentGrade: { not: null },
+        },
+        select: { currentGrade: true, credits: true },
+      });
+
+      if (gpaData.length > 0) {
+        const totalCredits = gpaData.reduce((sum, c) => sum + c.credits, 0);
+        if (totalCredits > 0) {
+          const totalPoints = gpaData.reduce((sum, c) => {
+            const grade = c.currentGrade || 0;
+            const gpaPoint =
+              grade >= 93 ? 4.0 : grade >= 90 ? 3.7 : grade >= 87 ? 3.3 :
+              grade >= 83 ? 3.0 : grade >= 80 ? 2.7 : grade >= 77 ? 2.3 :
+              grade >= 73 ? 2.0 : grade >= 70 ? 1.7 : grade >= 67 ? 1.3 :
+              grade >= 63 ? 1.0 : grade >= 60 ? 0.7 : 0.0;
+            return sum + c.credits * gpaPoint;
+          }, 0);
+          currentGpa = Math.round((totalPoints / totalCredits) * 100) / 100;
+        }
       }
+    } catch (gpaErr) {
+      console.error("GPA calculation error (non-fatal):", gpaErr);
+      // Non-fatal: continue without GPA data
     }
 
+    // 7. Build conversation history
     const conversationHistory = conversation.messages
       .filter((msg) => msg.role === "user" || msg.role === "assistant")
       .map((msg) => ({
@@ -178,6 +203,7 @@ export async function POST(request: Request) {
         content: msg.content,
       }));
 
+    // 8. Generate AI response
     let aiStream: ReadableStream;
     try {
       aiStream = await generateChatResponse(message, {
@@ -210,8 +236,10 @@ export async function POST(request: Request) {
       const isKeyIssue =
         errMsg.includes("OPENAI_API_KEY") ||
         errMsg.toLowerCase().includes("api key") ||
+        errMsg.toLowerCase().includes("invalid api") ||
         errMsg.includes("401") ||
-        errMsg.toLowerCase().includes("authentication");
+        errMsg.toLowerCase().includes("authentication") ||
+        errMsg.toLowerCase().includes("incorrect api");
 
       return NextResponse.json(
         {
@@ -223,6 +251,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // 9. Stream response back
     const chunks: string[] = [];
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
@@ -239,7 +268,6 @@ export async function POST(request: Request) {
             chunks.push(text);
             controller.enqueue(encoder.encode(text));
           }
-          // Flush remaining buffered bytes
           const finalText = decoder.decode();
           if (finalText) {
             chunks.push(finalText);
@@ -275,7 +303,6 @@ export async function POST(request: Request) {
     return new Response(responseStream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
-        "Transfer-Encoding": "chunked",
         "X-Conversation-Id": conversation.id,
         "Cache-Control": "no-cache, no-store",
       },

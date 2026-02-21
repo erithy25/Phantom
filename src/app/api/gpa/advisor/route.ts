@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { generateGpaAdvice } from "@/lib/ai";
 
+export const maxDuration = 60;
+
 export async function GET() {
   try {
     if (!process.env.OPENAI_API_KEY) {

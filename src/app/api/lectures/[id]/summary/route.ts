@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { generateLectureSummary } from "@/lib/ai";
 
+export const maxDuration = 60;
+
 export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
