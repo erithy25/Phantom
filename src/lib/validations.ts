@@ -52,7 +52,7 @@ export const resetPasswordSchema = z.object({
 
 export const chatMessageSchema = z.object({
   message: z.string().min(1).max(10000),
-  conversationId: z.string().optional(),
+  conversationId: z.string().nullish(),
 });
 
 export const courseSchema = z.object({
