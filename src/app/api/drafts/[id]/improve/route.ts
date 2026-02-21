@@ -9,6 +9,13 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json(
+        { error: "ANTHROPIC_API_KEY is not configured. Add it in Vercel → Settings → Environment Variables, then redeploy." },
+        { status: 503 }
+      );
+    }
+
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {

@@ -172,14 +172,25 @@ export function ChatInterface({
           return;
         }
         const detail = err instanceof Error ? err.message : "Unknown error";
+        const lowerDetail = detail.toLowerCase();
+
+        let friendlyMessage: string;
+        if (lowerDetail.includes("anthropic_api_key") || lowerDetail.includes("api key") || lowerDetail.includes("api_key")) {
+          friendlyMessage = "The AI service is not connected. The ANTHROPIC_API_KEY environment variable is missing or invalid.\n\nTo fix this:\n1. Go to your Vercel project dashboard\n2. Open Settings → Environment Variables\n3. Add ANTHROPIC_API_KEY with your key from console.anthropic.com\n4. Redeploy the project";
+        } else if (lowerDetail.includes("not authenticated") || lowerDetail.includes("unauthorized") || detail.includes("401")) {
+          friendlyMessage = "Your session has expired. Please refresh the page and log in again.";
+        } else if (lowerDetail.includes("database") || lowerDetail.includes("prisma") || lowerDetail.includes("connection")) {
+          friendlyMessage = "Could not connect to the database. Make sure DATABASE_URL is set correctly in your Vercel environment variables.";
+        } else if (lowerDetail.includes("model")) {
+          friendlyMessage = "The AI model could not be loaded. Check the Vercel deployment logs for details.";
+        } else {
+          friendlyMessage = `I ran into an issue processing your request: ${detail}`;
+        }
+
         const errorMessage: ChatMessage = {
           id: `error-${Date.now()}`,
           role: "phantom",
-          content: detail.includes("API key")
-            ? "The AI service isn't connected yet. Make sure the ANTHROPIC_API_KEY environment variable is set correctly in your Vercel project settings, then redeploy."
-            : detail.includes("model")
-              ? "The AI model could not be loaded. This is usually a configuration issue — check the Vercel deployment logs for details."
-              : `Something went wrong: ${detail}`,
+          content: friendlyMessage,
           createdAt: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, errorMessage]);

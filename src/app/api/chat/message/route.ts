@@ -9,10 +9,21 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
+    // Fail fast if critical env vars are missing
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json(
+        { error: "ANTHROPIC_API_KEY is not configured. Add it in Vercel → Settings → Environment Variables, then redeploy." },
+        { status: 503 }
+      );
+    }
+
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Not authenticated. Please log in again." },
+        { status: 401 }
+      );
     }
 
     let body;
