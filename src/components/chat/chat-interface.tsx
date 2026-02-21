@@ -175,8 +175,8 @@ export function ChatInterface({
         const lowerDetail = detail.toLowerCase();
 
         let friendlyMessage: string;
-        if (lowerDetail.includes("anthropic_api_key") || lowerDetail.includes("api key") || lowerDetail.includes("api_key")) {
-          friendlyMessage = "The AI service is not connected. The ANTHROPIC_API_KEY environment variable is missing or invalid.\n\nTo fix this:\n1. Go to your Vercel project dashboard\n2. Open Settings → Environment Variables\n3. Add ANTHROPIC_API_KEY with your key from console.anthropic.com\n4. Redeploy the project";
+        if (lowerDetail.includes("openai_api_key") || lowerDetail.includes("api key") || lowerDetail.includes("api_key")) {
+          friendlyMessage = "The AI service is not connected. The OPENAI_API_KEY environment variable is missing or invalid.\n\nTo fix this:\n1. Go to your Vercel project dashboard\n2. Open Settings → Environment Variables\n3. Add OPENAI_API_KEY with your key from platform.openai.com\n4. Redeploy the project";
         } else if (lowerDetail.includes("not authenticated") || lowerDetail.includes("unauthorized") || detail.includes("401")) {
           friendlyMessage = "Your session has expired. Please refresh the page and log in again.";
         } else if (lowerDetail.includes("database") || lowerDetail.includes("prisma") || lowerDetail.includes("connection")) {

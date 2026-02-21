@@ -10,9 +10,9 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     // Fail fast if critical env vars are missing
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
-        { error: "ANTHROPIC_API_KEY is not configured. Add it in Vercel → Settings → Environment Variables, then redeploy." },
+        { error: "OPENAI_API_KEY is not configured. Add it in Vercel → Settings → Environment Variables, then redeploy." },
         { status: 503 }
       );
     }
@@ -208,7 +208,7 @@ export async function POST(request: Request) {
       console.error("AI generation error:", errMsg);
 
       const isKeyIssue =
-        errMsg.includes("ANTHROPIC_API_KEY") ||
+        errMsg.includes("OPENAI_API_KEY") ||
         errMsg.toLowerCase().includes("api key") ||
         errMsg.includes("401") ||
         errMsg.toLowerCase().includes("authentication");
@@ -216,7 +216,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: isKeyIssue
-            ? "ANTHROPIC_API_KEY is missing or invalid. Set it in Vercel Environment Variables and redeploy."
+            ? "OPENAI_API_KEY is missing or invalid. Set it in Vercel Environment Variables and redeploy."
             : `AI error: ${errMsg}`,
         },
         { status: 503 }

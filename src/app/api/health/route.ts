@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -18,30 +18,29 @@ export async function GET() {
     checks.database = { connected: false, error: msg };
   }
 
-  // 2. ANTHROPIC_API_KEY check
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // 2. OPENAI_API_KEY check
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     checks.ai = {
       keyPresent: false,
       connected: false,
-      error: "ANTHROPIC_API_KEY is not set. Add it in Vercel > Settings > Environment Variables, then redeploy.",
+      error: "OPENAI_API_KEY is not set. Add it in Vercel > Settings > Environment Variables, then redeploy.",
     };
     return NextResponse.json({ status: "error", ...checks }, { status: 503 });
   }
 
   checks.ai = { keyPresent: true, keyPrefix: apiKey.substring(0, 10) + "..." };
 
-  // 3. Test actual Claude API call
+  // 3. Test actual OpenAI API call
   try {
-    const client = new Anthropic({ apiKey });
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-5-20250929",
+    const client = new OpenAI({ apiKey });
+    const response = await client.chat.completions.create({
+      model: "gpt-4o",
       max_tokens: 16,
       messages: [{ role: "user", content: "Say hi" }],
     });
 
-    const text =
-      response.content[0]?.type === "text" ? response.content[0].text : "";
+    const text = response.choices[0]?.message?.content || "";
     checks.ai = {
       ...(checks.ai as Record<string, unknown>),
       connected: true,

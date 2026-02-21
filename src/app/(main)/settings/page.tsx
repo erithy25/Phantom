@@ -973,10 +973,10 @@ export default function SettingsPage() {
                       <Sparkles className="w-5 h-5 text-phantom-textSecondary" />
                       <div>
                         <p className="text-sm text-phantom-text font-medium">
-                          Claude Sonnet 4.5
+                          GPT-4o
                         </p>
                         <p className="text-xs text-phantom-textMuted">
-                          Powered by Anthropic &middot; Fast & intelligent
+                          Powered by OpenAI &middot; Fast & intelligent
                         </p>
                       </div>
                     </div>

@@ -1,15 +1,15 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 
-const AI_MODEL = "claude-sonnet-4-5-20250929";
+const AI_MODEL = "gpt-4o";
 
-function getAnthropicClient(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+function getOpenAIClient(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "ANTHROPIC_API_KEY is not set. Add it to your Vercel environment variables and redeploy."
+      "OPENAI_API_KEY is not set. Add it to your Vercel environment variables and redeploy."
     );
   }
-  return new Anthropic({ apiKey });
+  return new OpenAI({ apiKey });
 }
 
 interface ChatContext {
@@ -42,22 +42,18 @@ export async function generateChatResponse(
 ): Promise<ReadableStream> {
   const systemPrompt = buildSystemPrompt(context);
 
-  const messages: Anthropic.MessageParam[] = [
+  const messages: OpenAI.ChatCompletionMessageParam[] = [
+    { role: "system", content: systemPrompt },
     ...(context.conversationHistory?.map((msg) => ({
       role: msg.role as "user" | "assistant",
       content: msg.content,
     })) || []),
-    { role: "user", content: message },
+    { role: "user" as const, content: message },
   ];
 
-  // Use messages.create with stream:true so the await actually waits for
-  // Anthropic's HTTP response headers. This means API errors (wrong key,
-  // bad model, etc.) are thrown HERE and caught by the caller's try-catch,
-  // instead of silently failing inside the ReadableStream later.
-  const stream = await getAnthropicClient().messages.create({
+  const stream = await getOpenAIClient().chat.completions.create({
     model: AI_MODEL,
     max_tokens: 4096,
-    system: systemPrompt,
     messages,
     stream: true,
   });
@@ -65,14 +61,10 @@ export async function generateChatResponse(
   return new ReadableStream({
     async start(controller) {
       try {
-        for await (const event of stream) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
-            controller.enqueue(
-              new TextEncoder().encode(event.delta.text)
-            );
+        for await (const chunk of stream) {
+          const text = chunk.choices[0]?.delta?.content;
+          if (text) {
+            controller.enqueue(new TextEncoder().encode(text));
           }
         }
       } catch (err) {
@@ -103,11 +95,11 @@ Writing tone: ${tone === "FORMAL" ? "Academic and formal" : tone === "CASUAL" ? 
 
 Produce a complete, submission-ready draft that would genuinely impress this professor.`;
 
-  const response = await getAnthropicClient().messages.create({
+  const response = await getOpenAIClient().chat.completions.create({
     model: AI_MODEL,
     max_tokens: 8192,
-    system: systemPrompt,
     messages: [
+      { role: "system", content: systemPrompt },
       {
         role: "user",
         content: `Generate a complete draft for this assignment:\n\n${assignmentDescription}`,
@@ -115,8 +107,7 @@ Produce a complete, submission-ready draft that would genuinely impress this pro
     ],
   });
 
-  const textBlock = response.content.find((block) => block.type === "text");
-  return textBlock ? textBlock.text : "";
+  return response.choices[0]?.message?.content || "";
 }
 
 export async function generateLectureSummary(
@@ -128,10 +119,13 @@ export async function generateLectureSummary(
   flashcards: Array<{ question: string; answer: string }>;
   examQuestions: Array<{ question: string; answer: string; topic: string }>;
 }> {
-  const response = await getAnthropicClient().messages.create({
+  const response = await getOpenAIClient().chat.completions.create({
     model: AI_MODEL,
     max_tokens: 8192,
-    system: `You analyze lecture transcripts and create study materials that actually help students learn.
+    messages: [
+      {
+        role: "system",
+        content: `You analyze lecture transcripts and create study materials that actually help students learn.
 
 Always respond in valid JSON with this exact structure:
 {
@@ -143,7 +137,7 @@ Always respond in valid JSON with this exact structure:
 
 For flashcards: Write 20-50 cards. Make questions specific and answers concise but complete. Write them in plain language, no formatting characters.
 For exam questions: Write 5-10 predicted questions based on what the professor emphasized most. Answers should be thorough but naturally written.`,
-    messages: [
+      },
       {
         role: "user",
         content: `Analyze this lecture transcript from ${courseName} and generate study materials:\n\n${transcript}`,
@@ -151,12 +145,12 @@ For exam questions: Write 5-10 predicted questions based on what the professor e
     ],
   });
 
-  const textBlock = response.content.find((block) => block.type === "text");
+  const text = response.choices[0]?.message?.content || "{}";
   try {
-    return JSON.parse(textBlock?.text || "{}");
+    return JSON.parse(text);
   } catch {
     return {
-      summary: textBlock?.text || "",
+      summary: text,
       topics: [],
       flashcards: [],
       examQuestions: [],
@@ -176,13 +170,16 @@ export async function generateGpaAdvice(
     }>;
   }>
 ): Promise<string> {
-  const response = await getAnthropicClient().messages.create({
+  const response = await getOpenAIClient().chat.completions.create({
     model: AI_MODEL,
     max_tokens: 2048,
-    system: `You are Phantom's GPA advisor. You help students make smart decisions about where to focus their time and energy.
+    messages: [
+      {
+        role: "system",
+        content: `You are Phantom's GPA advisor. You help students make smart decisions about where to focus their time and energy.
 
 Analyze their courses and upcoming assignments, then explain which ones will move the needle most on their GPA. Be specific with numbers — tell them exactly what scores they need and what impact those scores will have. Write in natural paragraphs, not bullet lists. No asterisks, no markdown headers, no special formatting characters. Keep it direct and easy to scan, using short paragraphs with line breaks between them. Sound like a knowledgeable friend giving real advice, not a report generator.`,
-    messages: [
+      },
       {
         role: "user",
         content: `Generate a GPA optimization strategy based on my current courses:\n\n${JSON.stringify(courses, null, 2)}`,
@@ -190,23 +187,25 @@ Analyze their courses and upcoming assignments, then explain which ones will mov
     ],
   });
 
-  const textBlock = response.content.find((block) => block.type === "text");
-  return textBlock?.text || "";
+  return response.choices[0]?.message?.content || "";
 }
 
 export async function generateInsight(
   context: ChatContext
 ): Promise<string> {
-  const response = await getAnthropicClient().messages.create({
+  const response = await getOpenAIClient().chat.completions.create({
     model: AI_MODEL,
     max_tokens: 256,
-    system: `Generate one short, specific insight about this student's academics. Keep it to 1-2 sentences. Be concrete — mention actual course names, professors, assignments, or GPA numbers. Make it feel like a smart observation that shows you truly understand their situation. Write in a natural, human tone. No asterisks, no special characters, no markdown. Just clean, plain text.
+    messages: [
+      {
+        role: "system",
+        content: `Generate one short, specific insight about this student's academics. Keep it to 1-2 sentences. Be concrete — mention actual course names, professors, assignments, or GPA numbers. Make it feel like a smart observation that shows you truly understand their situation. Write in a natural, human tone. No asterisks, no special characters, no markdown. Just clean, plain text.
 
 Good examples:
 "Your Chem final could push your GPA to 3.65 if you score above 88%. That's worth prioritizing this week."
 "Prof. Weber tends to reward structured arguments — your ECON draft could use a stronger thesis paragraph."
 "You've got three deadlines within 48 hours next Tuesday. Starting the Psych paper this weekend would take the pressure off."`,
-    messages: [
+      },
       {
         role: "user",
         content: `Generate today's insight for ${context.studentName || "the student"}. Their courses: ${JSON.stringify(context.courses || [])}. Upcoming: ${JSON.stringify(context.upcomingAssignments || [])}. Current GPA: ${context.gpa || "unknown"}`,
@@ -214,8 +213,7 @@ Good examples:
     ],
   });
 
-  const textBlock = response.content.find((block) => block.type === "text");
-  return textBlock?.text || "Phantom is analyzing your academic data...";
+  return response.choices[0]?.message?.content || "Phantom is analyzing your academic data...";
 }
 
 function buildSystemPrompt(context: ChatContext): string {
