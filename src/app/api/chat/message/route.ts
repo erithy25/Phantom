@@ -15,7 +15,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid request body." },
+        { status: 400 }
+      );
+    }
+
     const validation = chatMessageSchema.safeParse(body);
 
     if (!validation.success) {
@@ -27,88 +36,107 @@ export async function POST(request: Request) {
 
     const { message, conversationId } = validation.data;
 
-    const courses = await db.course.findMany({
-      where: { userId: session.user.id, isActive: true },
-      select: {
-        name: true,
-        code: true,
-        professorName: true,
-        currentGrade: true,
-        letterGrade: true,
-      },
-    });
-
-    const recentLectures = await db.lecture.findMany({
-      where: { userId: session.user.id },
-      orderBy: { date: "desc" },
-      take: 5,
-      select: {
-        title: true,
-        summary: true,
-        course: { select: { name: true } },
-      },
-    });
-
-    const upcomingAssignments = await db.assignment.findMany({
-      where: {
-        userId: session.user.id,
-        status: { not: "COMPLETED" },
-        dueDate: { gte: new Date() },
-      },
-      orderBy: { dueDate: "asc" },
-      take: 10,
-      select: {
-        title: true,
-        dueDate: true,
-        status: true,
-        course: { select: { name: true } },
-      },
-    });
+    let courses, recentLectures, upcomingAssignments;
+    try {
+      [courses, recentLectures, upcomingAssignments] = await Promise.all([
+        db.course.findMany({
+          where: { userId: session.user.id, isActive: true },
+          select: {
+            name: true,
+            code: true,
+            professorName: true,
+            currentGrade: true,
+            letterGrade: true,
+          },
+        }),
+        db.lecture.findMany({
+          where: { userId: session.user.id },
+          orderBy: { date: "desc" },
+          take: 5,
+          select: {
+            title: true,
+            summary: true,
+            course: { select: { name: true } },
+          },
+        }),
+        db.assignment.findMany({
+          where: {
+            userId: session.user.id,
+            status: { not: "COMPLETED" },
+            dueDate: { gte: new Date() },
+          },
+          orderBy: { dueDate: "asc" },
+          take: 10,
+          select: {
+            title: true,
+            dueDate: true,
+            status: true,
+            course: { select: { name: true } },
+          },
+        }),
+      ]);
+    } catch (dbError: unknown) {
+      const msg = dbError instanceof Error ? dbError.message : String(dbError);
+      console.error("Database query error:", msg);
+      return NextResponse.json(
+        { error: `Database error: ${msg}` },
+        { status: 500 }
+      );
+    }
 
     let conversation;
 
-    if (conversationId) {
-      conversation = await db.conversation.findFirst({
-        where: {
-          id: conversationId,
-          userId: session.user.id,
-        },
-        include: {
-          messages: {
-            orderBy: { createdAt: "asc" },
-            take: 50,
+    try {
+      if (conversationId) {
+        conversation = await db.conversation.findFirst({
+          where: {
+            id: conversationId,
+            userId: session.user.id,
           },
-        },
-      });
+          include: {
+            messages: {
+              orderBy: { createdAt: "asc" },
+              take: 50,
+            },
+          },
+        });
 
-      if (!conversation) {
-        return NextResponse.json(
-          { error: "Conversation not found." },
-          { status: 404 }
-        );
+        if (!conversation) {
+          return NextResponse.json(
+            { error: "Conversation not found." },
+            { status: 404 }
+          );
+        }
+      } else {
+        const title =
+          message.length > 50 ? message.substring(0, 50) + "..." : message;
+        conversation = await db.conversation.create({
+          data: {
+            userId: session.user.id,
+            title,
+            messages: {
+              create: [],
+            },
+          },
+          include: { messages: true },
+        });
       }
-    } else {
-      const title =
-        message.length > 50 ? message.substring(0, 50) + "..." : message;
-      conversation = await db.conversation.create({
-        data: {
-          userId: session.user.id,
-          title,
-          messages: {
-            create: [],
-          },
-        },
-        include: { messages: true },
-      });
-    }
 
-    await db.message.create({
-      data: {
-        conversationId: conversation.id,
-        role: "user",
-        content: message,
-      },
-    });
+      await db.message.create({
+        data: {
+          conversationId: conversation.id,
+          role: "user",
+          content: message,
+        },
+      });
+    } catch (dbError: unknown) {
+      const msg = dbError instanceof Error ? dbError.message : String(dbError);
+      console.error("Conversation DB error:", msg);
+      return NextResponse.json(
+        { error: `Database error: ${msg}` },
+        { status: 500 }
+      );
+    }
 
     const gpaData = await db.course.findMany({
       where: {
@@ -132,10 +160,12 @@ export async function POST(request: Request) {
       }
     }
 
-    const conversationHistory = conversation.messages.map((msg) => ({
-      role: msg.role as "user" | "assistant",
-      content: msg.content,
-    }));
+    const conversationHistory = conversation.messages
+      .filter((msg) => msg.role === "user" || msg.role === "assistant")
+      .map((msg) => ({
+        role: msg.role as "user" | "assistant",
+        content: msg.content,
+      }));
 
     let aiStream: ReadableStream;
     try {
@@ -166,18 +196,22 @@ export async function POST(request: Request) {
       const errMsg = aiError instanceof Error ? aiError.message : String(aiError);
       console.error("AI generation error:", errMsg);
 
+      const isKeyIssue =
+        errMsg.includes("ANTHROPIC_API_KEY") ||
+        errMsg.toLowerCase().includes("api key") ||
+        errMsg.includes("401") ||
+        errMsg.toLowerCase().includes("authentication");
+
       return NextResponse.json(
         {
-          error: errMsg.toLowerCase().includes("api key") || errMsg.includes("ANTHROPIC_API_KEY") || errMsg.includes("401")
-            ? "API key not configured. Set ANTHROPIC_API_KEY in your Vercel environment variables and redeploy."
-            : `AI service error: ${errMsg}`,
+          error: isKeyIssue
+            ? "ANTHROPIC_API_KEY is missing or invalid. Set it in Vercel Environment Variables and redeploy."
+            : `AI error: ${errMsg}`,
         },
         { status: 503 }
       );
     }
 
-    // Create a pass-through stream that collects chunks for DB save
-    // This avoids using tee() which can cause issues in serverless
     const chunks: string[] = [];
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
@@ -194,11 +228,21 @@ export async function POST(request: Request) {
             chunks.push(text);
             controller.enqueue(encoder.encode(text));
           }
-          controller.close();
+          // Flush remaining buffered bytes
+          const finalText = decoder.decode();
+          if (finalText) {
+            chunks.push(finalText);
+            controller.enqueue(encoder.encode(finalText));
+          }
+        } catch (err) {
+          console.error("Stream error:", err);
+        }
+        controller.close();
 
-          // Save the complete response to DB after streaming finishes
-          const fullResponse = chunks.join("");
-          if (fullResponse.trim()) {
+        // Save to DB after streaming finishes
+        const fullResponse = chunks.join("");
+        if (fullResponse.trim()) {
+          try {
             await db.message.create({
               data: {
                 conversationId: convId,
@@ -210,10 +254,9 @@ export async function POST(request: Request) {
               where: { id: convId },
               data: { updatedAt: new Date() },
             });
+          } catch (dbErr) {
+            console.error("Failed to save AI response:", dbErr);
           }
-        } catch (err) {
-          console.error("Stream error:", err);
-          controller.close();
         }
       },
     });
@@ -226,10 +269,11 @@ export async function POST(request: Request) {
         "Cache-Control": "no-cache, no-store",
       },
     });
-  } catch (error) {
-    console.error("Chat message error:", error);
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error("Chat message error:", errMsg);
     return NextResponse.json(
-      { error: "Failed to process message." },
+      { error: `Server error: ${errMsg}` },
       { status: 500 }
     );
   }
