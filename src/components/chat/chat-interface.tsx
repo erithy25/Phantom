@@ -119,8 +119,23 @@ export function ChatInterface({
         });
 
         if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `Server error (${res.status})`);
+          let errorMsg = `Server error (${res.status})`;
+          const contentType = res.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            const errData = await res.json().catch(() => ({}));
+            if (errData.error) errorMsg = errData.error;
+          } else {
+            // Vercel timeout or server crash returns HTML, not JSON
+            const text = await res.text().catch(() => "");
+            if (res.status === 504) {
+              errorMsg = "timeout";
+            } else if (res.status === 502) {
+              errorMsg = "server unreachable";
+            } else if (text.length < 200) {
+              errorMsg = text || errorMsg;
+            }
+          }
+          throw new Error(errorMsg);
         }
 
         const newConversationId = res.headers.get("X-Conversation-Id");
@@ -171,11 +186,32 @@ export function ChatInterface({
         if (err instanceof Error && err.name === "AbortError") {
           return;
         }
+        const detail = err instanceof Error ? err.message : "Unknown error";
+        const lowerDetail = detail.toLowerCase();
+
+        let friendlyMessage: string;
+        if (lowerDetail.includes("openai_api_key") || lowerDetail.includes("api key") || lowerDetail.includes("api_key") || lowerDetail.includes("incorrect api") || lowerDetail.includes("invalid api")) {
+          friendlyMessage = "The AI service is not connected. The OPENAI_API_KEY environment variable is missing or invalid.\n\nTo fix this:\n1. Go to your Vercel project dashboard\n2. Open Settings → Environment Variables\n3. Add OPENAI_API_KEY with your key from platform.openai.com\n4. Redeploy the project";
+        } else if (lowerDetail.includes("not authenticated") || lowerDetail.includes("unauthorized") || detail.includes("401")) {
+          friendlyMessage = "Your session has expired. Please refresh the page and log in again.";
+        } else if (lowerDetail.includes("timeout") || lowerDetail.includes("504") || lowerDetail.includes("timedout") || lowerDetail.includes("econnreset")) {
+          friendlyMessage = "The request timed out. This can happen on the first message after a deploy. Please try again.";
+        } else if (lowerDetail.includes("server unreachable") || lowerDetail.includes("502") || lowerDetail.includes("bad gateway")) {
+          friendlyMessage = "The server is starting up. Please wait a moment and try again.";
+        } else if (lowerDetail.includes("failed to fetch") || lowerDetail.includes("networkerror") || lowerDetail.includes("network")) {
+          friendlyMessage = "Network error. Check your internet connection and try again.";
+        } else if (lowerDetail.includes("database") || lowerDetail.includes("prisma") || lowerDetail.includes("connection refused") || lowerDetail.includes("connect etimedout")) {
+          friendlyMessage = "Could not connect to the database. Make sure DATABASE_URL is set correctly in your Vercel environment variables and redeploy.";
+        } else if (lowerDetail.includes("nextauth") || lowerDetail.includes("authentication service")) {
+          friendlyMessage = "Authentication is misconfigured. Make sure NEXTAUTH_SECRET and NEXTAUTH_URL are set in your Vercel environment variables.";
+        } else {
+          friendlyMessage = `Something went wrong: ${detail}\n\nCheck your Vercel deployment logs for more details.`;
+        }
+
         const errorMessage: ChatMessage = {
           id: `error-${Date.now()}`,
           role: "phantom",
-          content:
-            "I ran into an issue processing your request. Please try again.",
+          content: friendlyMessage,
           createdAt: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, errorMessage]);

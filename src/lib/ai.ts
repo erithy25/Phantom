@@ -1,13 +1,15 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 
-function getAnthropicClient(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+const AI_MODEL = "gpt-4o";
+
+function getOpenAIClient(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "ANTHROPIC_API_KEY is not configured. Please add your Claude API key to your environment variables."
+      "OPENAI_API_KEY is not set. Add it to your Vercel environment variables and redeploy."
     );
   }
-  return new Anthropic({ apiKey });
+  return new OpenAI({ apiKey });
 }
 
 interface ChatContext {
@@ -40,32 +42,36 @@ export async function generateChatResponse(
 ): Promise<ReadableStream> {
   const systemPrompt = buildSystemPrompt(context);
 
-  const messages: Anthropic.MessageParam[] = [
+  const messages: OpenAI.ChatCompletionMessageParam[] = [
+    { role: "system", content: systemPrompt },
     ...(context.conversationHistory?.map((msg) => ({
       role: msg.role as "user" | "assistant",
       content: msg.content,
     })) || []),
-    { role: "user", content: message },
+    { role: "user" as const, content: message },
   ];
 
-  const stream = await getAnthropicClient().messages.stream({
-    model: "claude-sonnet-4-5-20250929",
+  const stream = await getOpenAIClient().chat.completions.create({
+    model: AI_MODEL,
     max_tokens: 4096,
-    system: systemPrompt,
     messages,
+    stream: true,
   });
 
   return new ReadableStream({
     async start(controller) {
-      for await (const event of stream) {
-        if (
-          event.type === "content_block_delta" &&
-          event.delta.type === "text_delta"
-        ) {
-          controller.enqueue(
-            new TextEncoder().encode(event.delta.text)
-          );
+      try {
+        for await (const chunk of stream) {
+          const text = chunk.choices[0]?.delta?.content;
+          if (text) {
+            controller.enqueue(new TextEncoder().encode(text));
+          }
         }
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        controller.enqueue(
+          new TextEncoder().encode(`\n\n[Connection lost: ${errMsg}]`)
+        );
       }
       controller.close();
     },
@@ -78,26 +84,22 @@ export async function generateDraft(
   courseContext: string,
   tone: string = "BALANCED"
 ): Promise<string> {
-  const systemPrompt = `You are Phantom's Draft Factory — an AI that generates high-quality academic assignment drafts.
+  const systemPrompt = `You are Phantom's writing engine. You produce academic drafts that read like they were written by a talented, thoughtful student — never like an AI.
 
-Your writing must:
-- Match the professor's grading style and preferences
-- Include proper citations and formatting
-- Be substantive, analytical, and well-structured
-- Never be generic — always course-specific and contextual
-- Sound like an excellent student, not an AI
+Your writing approach:
+Write with substance and clarity. Match the professor's known style and expectations. Be analytical where the assignment calls for it, and direct where brevity matters. Structure the work with clear paragraphs and logical flow, but avoid robotic formatting. Do not use asterisks for emphasis. Use real paragraph breaks, not bullet lists, unless the assignment format specifically requires them. Include proper citations and references where appropriate.
 
 Professor profile: ${JSON.stringify(professorProfile || {})}
 Course context: ${courseContext}
 Writing tone: ${tone === "FORMAL" ? "Academic and formal" : tone === "CASUAL" ? "Clear and conversational" : "Professional but accessible"}
 
-Generate a complete first draft that would score well based on the professor's known grading patterns.`;
+Produce a complete, submission-ready draft that would genuinely impress this professor.`;
 
-  const response = await getAnthropicClient().messages.create({
-    model: "claude-sonnet-4-5-20250929",
+  const response = await getOpenAIClient().chat.completions.create({
+    model: AI_MODEL,
     max_tokens: 8192,
-    system: systemPrompt,
     messages: [
+      { role: "system", content: systemPrompt },
       {
         role: "user",
         content: `Generate a complete draft for this assignment:\n\n${assignmentDescription}`,
@@ -105,8 +107,7 @@ Generate a complete first draft that would score well based on the professor's k
     ],
   });
 
-  const textBlock = response.content.find((block) => block.type === "text");
-  return textBlock ? textBlock.text : "";
+  return response.choices[0]?.message?.content || "";
 }
 
 export async function generateLectureSummary(
@@ -118,21 +119,25 @@ export async function generateLectureSummary(
   flashcards: Array<{ question: string; answer: string }>;
   examQuestions: Array<{ question: string; answer: string; topic: string }>;
 }> {
-  const response = await getAnthropicClient().messages.create({
-    model: "claude-sonnet-4-5-20250929",
+  const response = await getOpenAIClient().chat.completions.create({
+    model: AI_MODEL,
     max_tokens: 8192,
-    system: `You are Phantom's Lecture Analysis Engine. Analyze lecture transcripts and generate comprehensive study materials.
+    messages: [
+      {
+        role: "system",
+        content: `You analyze lecture transcripts and create study materials that actually help students learn.
 
 Always respond in valid JSON with this exact structure:
 {
-  "summary": "500-800 word structured summary",
-  "topics": ["topic1", "topic2", ...],
-  "flashcards": [{"question": "...", "answer": "..."}, ...],
-  "examQuestions": [{"question": "...", "answer": "...", "topic": "..."}, ...]
+  "summary": "A 500-800 word summary written in natural, flowing prose. No bullet points, no asterisks, no markdown formatting. Write it like a clear explanation you'd give a classmate — organized by topic but in paragraph form with line breaks between sections.",
+  "topics": ["topic1", "topic2"],
+  "flashcards": [{"question": "...", "answer": "..."}],
+  "examQuestions": [{"question": "...", "answer": "...", "topic": "..."}]
 }
 
-Generate 20-50 flashcards and 5-10 predicted exam questions based on emphasis detection.`,
-    messages: [
+For flashcards: Write 20-50 cards. Make questions specific and answers concise but complete. Write them in plain language, no formatting characters.
+For exam questions: Write 5-10 predicted questions based on what the professor emphasized most. Answers should be thorough but naturally written.`,
+      },
       {
         role: "user",
         content: `Analyze this lecture transcript from ${courseName} and generate study materials:\n\n${transcript}`,
@@ -140,12 +145,12 @@ Generate 20-50 flashcards and 5-10 predicted exam questions based on emphasis de
     ],
   });
 
-  const textBlock = response.content.find((block) => block.type === "text");
+  const text = response.choices[0]?.message?.content || "{}";
   try {
-    return JSON.parse(textBlock?.text || "{}");
+    return JSON.parse(text);
   } catch {
     return {
-      summary: textBlock?.text || "",
+      summary: text,
       topics: [],
       flashcards: [],
       examQuestions: [],
@@ -165,13 +170,16 @@ export async function generateGpaAdvice(
     }>;
   }>
 ): Promise<string> {
-  const response = await getAnthropicClient().messages.create({
-    model: "claude-sonnet-4-5-20250929",
+  const response = await getOpenAIClient().chat.completions.create({
+    model: AI_MODEL,
     max_tokens: 2048,
-    system: `You are Phantom's GPA Advisor. Analyze the student's course data and provide actionable, prioritized study recommendations.
-
-Focus on ROI: which courses and assignments will have the biggest GPA impact for the least effort. Be specific with time allocations and priorities.`,
     messages: [
+      {
+        role: "system",
+        content: `You are Phantom's GPA advisor. You help students make smart decisions about where to focus their time and energy.
+
+Analyze their courses and upcoming assignments, then explain which ones will move the needle most on their GPA. Be specific with numbers — tell them exactly what scores they need and what impact those scores will have. Write in natural paragraphs, not bullet lists. No asterisks, no markdown headers, no special formatting characters. Keep it direct and easy to scan, using short paragraphs with line breaks between them. Sound like a knowledgeable friend giving real advice, not a report generator.`,
+      },
       {
         role: "user",
         content: `Generate a GPA optimization strategy based on my current courses:\n\n${JSON.stringify(courses, null, 2)}`,
@@ -179,29 +187,25 @@ Focus on ROI: which courses and assignments will have the biggest GPA impact for
     ],
   });
 
-  const textBlock = response.content.find((block) => block.type === "text");
-  return textBlock?.text || "";
+  return response.choices[0]?.message?.content || "";
 }
 
 export async function generateInsight(
   context: ChatContext
 ): Promise<string> {
-  const response = await getAnthropicClient().messages.create({
-    model: "claude-sonnet-4-5-20250929",
+  const response = await getOpenAIClient().chat.completions.create({
+    model: AI_MODEL,
     max_tokens: 256,
-    system: `You are Phantom's Insight Engine. Generate a single, specific, actionable insight about the student's academic situation.
-
-The insight should be:
-- Hyper-specific to their courses and professors
-- Actionable (they can do something about it)
-- Slightly impressive (show that Phantom knows things they didn't expect)
-- 1-2 sentences maximum
-
-Examples:
-- "Your ECON Problem Set draft is ready — I matched Prof. Weber's preferred format from his last 3 assignments."
-- "I noticed Dr. Mitchell emphasizes reaction mechanisms. I've created 23 targeted flashcards for your midterm."
-- "Your GPA would jump to 3.65 if you score above 88% on your Chem final. I've prepared a focused study plan."`,
     messages: [
+      {
+        role: "system",
+        content: `Generate one short, specific insight about this student's academics. Keep it to 1-2 sentences. Be concrete — mention actual course names, professors, assignments, or GPA numbers. Make it feel like a smart observation that shows you truly understand their situation. Write in a natural, human tone. No asterisks, no special characters, no markdown. Just clean, plain text.
+
+Good examples:
+"Your Chem final could push your GPA to 3.65 if you score above 88%. That's worth prioritizing this week."
+"Prof. Weber tends to reward structured arguments — your ECON draft could use a stronger thesis paragraph."
+"You've got three deadlines within 48 hours next Tuesday. Starting the Psych paper this weekend would take the pressure off."`,
+      },
       {
         role: "user",
         content: `Generate today's insight for ${context.studentName || "the student"}. Their courses: ${JSON.stringify(context.courses || [])}. Upcoming: ${JSON.stringify(context.upcomingAssignments || [])}. Current GPA: ${context.gpa || "unknown"}`,
@@ -209,27 +213,28 @@ Examples:
     ],
   });
 
-  const textBlock = response.content.find((block) => block.type === "text");
-  return textBlock?.text || "Phantom is analyzing your academic data...";
+  return response.choices[0]?.message?.content || "Phantom is analyzing your academic data...";
 }
 
 function buildSystemPrompt(context: ChatContext): string {
-  return `You are Phantom AI — a hyper-intelligent academic assistant that deeply understands this student's entire academic life.
+  return `You are Phantom, a sharp and personal academic assistant who knows this student inside out.
 
-STUDENT CONTEXT:
-- Name: ${context.studentName || "Student"}
-- Current GPA: ${context.gpa || "N/A"}
-- Courses: ${JSON.stringify(context.courses || [], null, 2)}
-- Recent lectures: ${JSON.stringify(context.recentLectures || [], null, 2)}
-- Upcoming assignments: ${JSON.stringify(context.upcomingAssignments || [], null, 2)}
+About this student:
+Name: ${context.studentName || "Student"}
+GPA: ${context.gpa || "not yet available"}
+Courses: ${JSON.stringify(context.courses || [], null, 2)}
+Recent lectures: ${JSON.stringify(context.recentLectures || [], null, 2)}
+Upcoming assignments: ${JSON.stringify(context.upcomingAssignments || [], null, 2)}
 
-BEHAVIORAL RULES:
-1. You know this student's courses, professors, and academic history deeply. Reference specific courses, professors, and assignments by name.
-2. Be concise but thorough. Students are busy — get to the point fast.
-3. When asked to write or draft, produce high-quality, course-specific content immediately.
-4. When discussing grades or GPA, be precise with numbers and impacts.
-5. Proactively suggest actionable next steps.
-6. Never be generic. Every response should feel personalized to THIS student.
-7. You can generate study materials, draft outlines, flashcards, and exam prep inline.
-8. Format responses in clean markdown for readability.`;
+How you communicate:
+- Write like a smart, supportive friend who happens to know everything about their academics. Be warm but not cheesy.
+- Never use asterisks for bold or emphasis. Never use markdown headers like # or ##. Never use bullet point characters like - or * at the start of lines.
+- Instead of lists and bullet points, write in natural flowing sentences and short paragraphs. Use line breaks between paragraphs for readability.
+- Keep it conversational and clean. No filler phrases, no generic advice, no robotic language.
+- Reference their specific courses, professors, and assignments by name. Every response should feel like it was written just for them.
+- When discussing grades or GPA, be precise with the numbers.
+- When they ask you to write or draft something, deliver high-quality, course-specific content right away.
+- If you suggest next steps, weave them naturally into your response rather than listing them.
+- You can generate study materials, outlines, flashcards, and exam prep when asked.
+- Never start a response with "Sure!" or "Of course!" or "Great question!" — just answer directly and naturally.`;
 }

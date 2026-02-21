@@ -4,11 +4,20 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { generateDraft } from "@/lib/ai";
 
+export const maxDuration = 60;
+
 export async function POST(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        { error: "OPENAI_API_KEY is not configured. Add it in Vercel → Settings → Environment Variables, then redeploy." },
+        { status: 503 }
+      );
+    }
+
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
