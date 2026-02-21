@@ -1,10 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 
+const AI_MODEL = "claude-sonnet-4-5-20250929";
+
 function getAnthropicClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "ANTHROPIC_API_KEY is not configured. Please add your Claude API key to your environment variables."
+      "ANTHROPIC_API_KEY is not set. Add it to your Vercel environment variables and redeploy."
     );
   }
   return new Anthropic({ apiKey });
@@ -49,7 +51,7 @@ export async function generateChatResponse(
   ];
 
   const stream = await getAnthropicClient().messages.stream({
-    model: "claude-sonnet-4-5-20250929",
+    model: AI_MODEL,
     max_tokens: 4096,
     system: systemPrompt,
     messages,
@@ -90,7 +92,7 @@ Writing tone: ${tone === "FORMAL" ? "Academic and formal" : tone === "CASUAL" ? 
 Produce a complete, submission-ready draft that would genuinely impress this professor.`;
 
   const response = await getAnthropicClient().messages.create({
-    model: "claude-sonnet-4-5-20250929",
+    model: AI_MODEL,
     max_tokens: 8192,
     system: systemPrompt,
     messages: [
@@ -115,7 +117,7 @@ export async function generateLectureSummary(
   examQuestions: Array<{ question: string; answer: string; topic: string }>;
 }> {
   const response = await getAnthropicClient().messages.create({
-    model: "claude-sonnet-4-5-20250929",
+    model: AI_MODEL,
     max_tokens: 8192,
     system: `You analyze lecture transcripts and create study materials that actually help students learn.
 
@@ -163,7 +165,7 @@ export async function generateGpaAdvice(
   }>
 ): Promise<string> {
   const response = await getAnthropicClient().messages.create({
-    model: "claude-sonnet-4-5-20250929",
+    model: AI_MODEL,
     max_tokens: 2048,
     system: `You are Phantom's GPA advisor. You help students make smart decisions about where to focus their time and energy.
 
@@ -184,7 +186,7 @@ export async function generateInsight(
   context: ChatContext
 ): Promise<string> {
   const response = await getAnthropicClient().messages.create({
-    model: "claude-sonnet-4-5-20250929",
+    model: AI_MODEL,
     max_tokens: 256,
     system: `Generate one short, specific insight about this student's academics. Keep it to 1-2 sentences. Be concrete — mention actual course names, professors, assignments, or GPA numbers. Make it feel like a smart observation that shows you truly understand their situation. Write in a natural, human tone. No asterisks, no special characters, no markdown. Just clean, plain text.
 

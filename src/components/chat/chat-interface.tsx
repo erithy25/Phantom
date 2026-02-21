@@ -171,11 +171,15 @@ export function ChatInterface({
         if (err instanceof Error && err.name === "AbortError") {
           return;
         }
+        const detail = err instanceof Error ? err.message : "Unknown error";
         const errorMessage: ChatMessage = {
           id: `error-${Date.now()}`,
           role: "phantom",
-          content:
-            "I ran into an issue processing your request. Please try again.",
+          content: detail.includes("API key")
+            ? "The AI service isn't connected yet. Make sure the ANTHROPIC_API_KEY environment variable is set correctly in your Vercel project settings, then redeploy."
+            : detail.includes("model")
+              ? "The AI model could not be loaded. This is usually a configuration issue — check the Vercel deployment logs for details."
+              : `Something went wrong: ${detail}`,
           createdAt: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, errorMessage]);

@@ -162,10 +162,16 @@ export async function POST(request: Request) {
         gpa: currentGpa,
         conversationHistory,
       });
-    } catch (aiError) {
-      console.error("AI generation error:", aiError);
+    } catch (aiError: unknown) {
+      const errMsg = aiError instanceof Error ? aiError.message : String(aiError);
+      console.error("AI generation error:", errMsg);
+
       return NextResponse.json(
-        { error: "AI service is currently unavailable. Please check that the API key is configured." },
+        {
+          error: errMsg.toLowerCase().includes("api key") || errMsg.includes("ANTHROPIC_API_KEY") || errMsg.includes("401")
+            ? "API key not configured. Set ANTHROPIC_API_KEY in your Vercel environment variables and redeploy."
+            : `AI service error: ${errMsg}`,
+        },
         { status: 503 }
       );
     }

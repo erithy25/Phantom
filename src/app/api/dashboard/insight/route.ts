@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import Anthropic from "@anthropic-ai/sdk";
+import { generateInsight } from "@/lib/ai";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
@@ -13,7 +15,7 @@ export async function GET() {
 
     const userId = session.user.id;
 
-    const [user, courses, upcomingTasks, drafts] = await Promise.all([
+    const [user, courses, upcomingTasks] = await Promise.all([
       db.user.findUnique({
         where: { id: userId },
         select: { name: true },
@@ -28,11 +30,10 @@ export async function GET() {
           status: { not: "COMPLETED" },
           dueDate: { gte: new Date(), lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
         },
-        select: { title: true, dueDate: true, course: { select: { name: true } } },
+        select: { title: true, dueDate: true, status: true, course: { select: { name: true } } },
         orderBy: { dueDate: "asc" },
         take: 5,
       }),
-      db.draft.count({ where: { userId, status: "GENERATED" } }),
     ]);
 
     // If user has no courses or tasks, return a welcome message
@@ -42,35 +43,39 @@ export async function GET() {
       });
     }
 
-    // Build context for AI
-    const context = [];
-    if (courses.length > 0) {
-      context.push(`Courses: ${courses.map(c => `${c.name} (${c.code})${c.letterGrade ? ` - ${c.letterGrade}` : ""}`).join(", ")}`);
-    }
-    if (upcomingTasks.length > 0) {
-      context.push(`Upcoming tasks: ${upcomingTasks.map(t => `${t.title} (${t.course.name}, due ${t.dueDate ? new Date(t.dueDate).toLocaleDateString() : "soon"})`).join(", ")}`);
-    }
-    if (drafts > 0) {
-      context.push(`${drafts} draft(s) ready for review.`);
+    // Compute GPA for context
+    const coursesWithGrades = courses.filter(c => c.currentGrade !== null);
+    let gpa: number | undefined;
+    if (coursesWithGrades.length > 0) {
+      const totalCredits = coursesWithGrades.reduce((sum, c) => sum + c.credits, 0);
+      if (totalCredits > 0) {
+        const totalPoints = coursesWithGrades.reduce((sum, c) => {
+          const grade = c.currentGrade || 0;
+          const gpaPoint = grade >= 93 ? 4.0 : grade >= 90 ? 3.7 : grade >= 87 ? 3.3 : grade >= 83 ? 3.0 : grade >= 80 ? 2.7 : grade >= 77 ? 2.3 : grade >= 73 ? 2.0 : grade >= 70 ? 1.7 : grade >= 67 ? 1.3 : grade >= 63 ? 1.0 : grade >= 60 ? 0.7 : 0.0;
+          return sum + c.credits * gpaPoint;
+        }, 0);
+        gpa = Math.round((totalPoints / totalCredits) * 100) / 100;
+      }
     }
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || "" });
-
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-5-20250929",
-      max_tokens: 200,
-      system: `Generate one short, personalized academic insight based on the student's data. Keep it to 1-2 natural sentences. Be specific — reference actual course names, deadlines, or grades. No asterisks, no markdown, no special characters. Just clean, plain text that sounds like a smart friend giving a quick heads-up.`,
-      messages: [
-        {
-          role: "user",
-          content: `Student context:\n${context.join("\n")}`,
-        },
-      ],
+    const insight = await generateInsight({
+      studentName: user?.name || undefined,
+      courses: courses.map(c => ({
+        name: c.name,
+        code: c.code,
+        currentGrade: c.currentGrade || undefined,
+        letterGrade: c.letterGrade || undefined,
+      })),
+      upcomingAssignments: upcomingTasks.map(t => ({
+        title: t.title,
+        courseName: t.course.name,
+        dueDate: t.dueDate?.toISOString(),
+        status: t.status,
+      })),
+      gpa,
     });
 
-    const text = response.content[0]?.type === "text" ? response.content[0].text : null;
-
-    return NextResponse.json({ insight: text });
+    return NextResponse.json({ insight });
   } catch (error) {
     console.error("Insight generation error:", error);
     return NextResponse.json({ insight: null });
