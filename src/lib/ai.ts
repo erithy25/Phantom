@@ -50,24 +50,36 @@ export async function generateChatResponse(
     { role: "user", content: message },
   ];
 
-  const stream = await getAnthropicClient().messages.stream({
+  // Use messages.create with stream:true so the await actually waits for
+  // Anthropic's HTTP response headers. This means API errors (wrong key,
+  // bad model, etc.) are thrown HERE and caught by the caller's try-catch,
+  // instead of silently failing inside the ReadableStream later.
+  const stream = await getAnthropicClient().messages.create({
     model: AI_MODEL,
     max_tokens: 4096,
     system: systemPrompt,
     messages,
+    stream: true,
   });
 
   return new ReadableStream({
     async start(controller) {
-      for await (const event of stream) {
-        if (
-          event.type === "content_block_delta" &&
-          event.delta.type === "text_delta"
-        ) {
-          controller.enqueue(
-            new TextEncoder().encode(event.delta.text)
-          );
+      try {
+        for await (const event of stream) {
+          if (
+            event.type === "content_block_delta" &&
+            event.delta.type === "text_delta"
+          ) {
+            controller.enqueue(
+              new TextEncoder().encode(event.delta.text)
+            );
+          }
         }
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        controller.enqueue(
+          new TextEncoder().encode(`\n\n[Connection lost: ${errMsg}]`)
+        );
       }
       controller.close();
     },
