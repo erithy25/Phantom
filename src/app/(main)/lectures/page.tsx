@@ -15,6 +15,9 @@ import {
   Search,
   Mic,
   ChevronDown,
+  Trash2,
+  X,
+  PenLine,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate, formatDuration } from "@/lib/utils";
@@ -82,86 +85,50 @@ function ProcessingStatus({ status }: { status: string }) {
 /*  Lecture Row                                                                */
 /* -------------------------------------------------------------------------- */
 
-function LectureRow({ lecture, index }: { lecture: Lecture; index: number }) {
+function LectureRow({ lecture, index, onDelete }: { lecture: Lecture; index: number; onDelete: (id: string) => void }) {
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.04, duration: 0.3 }}
-    >
-      <Link href={`/lectures/${lecture.id}`}>
-        <div
-          className={cn(
-            "group flex items-center gap-4 p-4 rounded-lg",
-            "border border-phantom-border bg-phantom-bgCard",
-            "hover:border-phantom-borderHover hover:bg-phantom-bgCardHover",
-            "hover:-translate-y-px",
-            "transition-all duration-200 cursor-pointer"
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04, duration: 0.3 }}>
+      <div className="relative group">
+        <Link href={`/lectures/${lecture.id}`}>
+          <div className={cn("flex items-center gap-4 p-4 rounded-lg", "border border-phantom-border bg-phantom-bgCard", "hover:border-phantom-borderHover hover:bg-phantom-bgCardHover", "hover:-translate-y-px", "transition-all duration-200 cursor-pointer")}>
+            <div className={cn("w-10 h-10 rounded-lg shrink-0", "bg-phantom-accentBg border border-phantom-border", "flex items-center justify-center")}>
+              <Mic className="w-4 h-4 text-phantom-textTertiary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-card-title text-phantom-text truncate">{lecture.title || "Untitled Lecture"}</h3>
+                <ProcessingStatus status={lecture.processingStatus} />
+              </div>
+              <div className="flex items-center gap-3 text-caption text-phantom-textTertiary">
+                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDate(lecture.date)}</span>
+                {lecture.durationSeconds && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatDuration(lecture.durationSeconds)}</span>}
+                {lecture.course && <span className="font-mono text-phantom-textMuted">{lecture.course.code}</span>}
+              </div>
+            </div>
+            <div className="hidden md:flex items-center gap-1.5">
+              {featureBadges.map(({ key, label, icon: Icon }) => {
+                const available = hasFeature(lecture, key);
+                return (<div key={key} className={cn("flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium border transition-colors duration-200", available ? "border-phantom-borderHover bg-phantom-accentBg text-phantom-textSecondary" : "border-transparent bg-transparent text-phantom-textMuted/40")}><Icon className="w-3 h-3" /><span className="hidden lg:inline">{label}</span></div>);
+              })}
+            </div>
+          </div>
+        </Link>
+        {/* Delete overlay */}
+        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+          {deleteConfirm ? (
+            <div className="flex items-center gap-1 bg-phantom-bgCard border border-phantom-border rounded-md p-1">
+              <button onClick={(e) => { e.preventDefault(); onDelete(lecture.id); }} className="px-2 py-0.5 rounded text-[10px] bg-phantom-danger/10 text-phantom-danger hover:bg-phantom-danger/20 transition-colors">Delete</button>
+              <button onClick={(e) => { e.preventDefault(); setDeleteConfirm(false); }} className="p-0.5 rounded text-phantom-textMuted hover:text-phantom-text transition-colors"><X className="w-3 h-3" /></button>
+            </div>
+          ) : (
+            <button onClick={(e) => { e.preventDefault(); setDeleteConfirm(true); }} className="p-1.5 rounded-md bg-phantom-bgCard border border-phantom-border text-phantom-textMuted hover:text-phantom-danger hover:bg-phantom-danger/10 transition-colors">
+              <Trash2 className="w-3 h-3" />
+            </button>
           )}
-        >
-          {/* Icon */}
-          <div
-            className={cn(
-              "w-10 h-10 rounded-lg shrink-0",
-              "bg-phantom-accentBg border border-phantom-border",
-              "flex items-center justify-center",
-              "group-hover:border-phantom-borderHover"
-            )}
-          >
-            <Mic className="w-4 h-4 text-phantom-textTertiary" />
-          </div>
-
-          {/* Main Info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-card-title text-phantom-text truncate">
-                {lecture.title || "Untitled Lecture"}
-              </h3>
-              <ProcessingStatus status={lecture.processingStatus} />
-            </div>
-
-            <div className="flex items-center gap-3 text-caption text-phantom-textTertiary">
-              <span className="flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
-                {formatDate(lecture.date)}
-              </span>
-              {lecture.durationSeconds && (
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {formatDuration(lecture.durationSeconds)}
-                </span>
-              )}
-              {lecture.course && (
-                <span className="font-mono text-phantom-textMuted">
-                  {lecture.course.code}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Feature Badges */}
-          <div className="hidden md:flex items-center gap-1.5">
-            {featureBadges.map(({ key, label, icon: Icon }) => {
-              const available = hasFeature(lecture, key);
-              return (
-                <div
-                  key={key}
-                  className={cn(
-                    "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium",
-                    "border transition-colors duration-200",
-                    available
-                      ? "border-phantom-borderHover bg-phantom-accentBg text-phantom-textSecondary"
-                      : "border-transparent bg-transparent text-phantom-textMuted/40"
-                  )}
-                >
-                  <Icon className="w-3 h-3" />
-                  <span className="hidden lg:inline">{label}</span>
-                </div>
-              );
-            })}
-          </div>
         </div>
-      </Link>
+      </div>
     </motion.div>
   );
 }
@@ -198,6 +165,63 @@ function LectureListSkeleton() {
 /*  Page                                                                       */
 /* -------------------------------------------------------------------------- */
 
+function NotesInput({ courses, onSubmitted }: { courses: Course[]; onSubmitted: () => void }) {
+  const [showForm, setShowForm] = useState(false);
+  const [courseId, setCourseId] = useState("");
+  const [title, setTitle] = useState("");
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!courseId || !notes.trim()) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/lectures/from-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ courseId, title: title || undefined, notes }) });
+      if (res.ok) { setShowForm(false); setNotes(""); setTitle(""); setCourseId(""); onSubmitted(); }
+    } catch { /* */ } finally { setSubmitting(false); }
+  };
+
+  if (!showForm) {
+    return (
+      <Button variant="default" size="md" onClick={() => setShowForm(true)} className="shrink-0">
+        <PenLine className="w-4 h-4" />
+        Paste Notes
+      </Button>
+    );
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="overflow-hidden">
+      <div className="rounded-lg border border-phantom-borderHover bg-phantom-bgCard p-4 space-y-3 mb-6">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-caption text-phantom-textMuted block mb-1">Course *</label>
+            <select value={courseId} onChange={(e) => setCourseId(e.target.value)} className={cn("w-full h-9 px-3 rounded-md text-body", "bg-phantom-bgInput border border-phantom-border text-phantom-text", "focus:outline-none")}>
+              <option value="">Select course...</option>
+              {courses.map((c) => <option key={c.id} value={c.id}>{c.code} {c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-caption text-phantom-textMuted block mb-1">Title</label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Lecture 12: Thermodynamics" />
+          </div>
+        </div>
+        <div>
+          <label className="text-caption text-phantom-textMuted block mb-1">Lecture Notes / Transcript *</label>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Paste your lecture notes, transcript, or any text from the lecture here. The AI will analyze it, create a summary, flashcards, and exam questions..."
+            className={cn("w-full min-h-[150px] px-3 py-2 rounded-md text-body", "bg-phantom-bgInput border border-phantom-border text-phantom-text", "placeholder:text-phantom-textMuted resize-y", "focus:outline-none focus:border-phantom-borderHover")} />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="default" size="sm" onClick={() => setShowForm(false)}>Cancel</Button>
+          <Button variant="primary" size="sm" onClick={handleSubmit} disabled={!courseId || !notes.trim() || submitting}>
+            {submitting ? "Analyzing..." : "Analyze Notes"}
+          </Button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function LecturesPage() {
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -210,10 +234,13 @@ export default function LecturesPage() {
   const fetchLectures = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/lectures");
-      if (res.ok) {
-        const data = await res.json();
+      const [lectRes, courseRes] = await Promise.allSettled([fetch("/api/lectures"), fetch("/api/courses")]);
+      if (lectRes.status === "fulfilled" && lectRes.value.ok) {
+        const data = await lectRes.value.json();
         setLectures(data.lectures || []);
+      }
+      if (courseRes.status === "fulfilled" && courseRes.value.ok) {
+        const data = await courseRes.value.json();
         setCourses(data.courses || []);
       }
     } catch (err) {
@@ -255,15 +282,13 @@ export default function LecturesPage() {
             AI-captured lectures with transcripts, summaries, and study materials.
           </p>
         </div>
-        <Button
-          variant="primary"
-          size="md"
-          onClick={() => setShowUpload(true)}
-          className="shrink-0"
-        >
-          <Upload className="w-4 h-4" />
-          Upload
-        </Button>
+        <div className="flex items-center gap-2">
+          <NotesInput courses={courses} onSubmitted={fetchLectures} />
+          <Button variant="primary" size="md" onClick={() => setShowUpload(true)} className="shrink-0">
+            <Upload className="w-4 h-4" />
+            Upload Audio
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -394,7 +419,9 @@ export default function LecturesPage() {
       ) : (
         <div className="space-y-2">
           {filteredLectures.map((lecture, i) => (
-            <LectureRow key={lecture.id} lecture={lecture} index={i} />
+            <LectureRow key={lecture.id} lecture={lecture} index={i} onDelete={async (id) => {
+              try { const res = await fetch(`/api/lectures/${id}`, { method: "DELETE" }); if (res.ok) setLectures((p) => p.filter((l) => l.id !== id)); } catch { /* */ }
+            }} />
           ))}
         </div>
       )}

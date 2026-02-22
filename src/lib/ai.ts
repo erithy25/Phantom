@@ -2,7 +2,7 @@ import OpenAI from "openai";
 
 const AI_MODEL = "gpt-4o";
 
-function getOpenAIClient(): OpenAI {
+export function getOpenAIClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error(
@@ -20,7 +20,7 @@ CRITICAL WRITING RULES. Follow these without exception:
 You must write like a real human student. Your text must be completely undetectable by any AI detection tool (GPTZero, Turnitin, Originality.ai, ZeroGPT, etc.). This is non-negotiable.
 
 ABSOLUTELY NO DASHES:
-NEVER use dashes of any kind. No hyphens (-), no en dashes, no em dashes. Not as bullet points, not as separators, not as punctuation in sentences. Instead of "well — that's just how it is" write "well, that's just how it is" or restructure the sentence. Instead of bullet lists with dashes, use numbered lists (1. 2. 3.) or just write in natural paragraphs. This rule has ZERO exceptions.
+NEVER use dashes of any kind. No hyphens (-), no en dashes, no em dashes. Not as bullet points, not as separators, not as punctuation in sentences. Instead of "well,that's just how it is" write "well, that's just how it is" or restructure the sentence. Instead of bullet lists with dashes, use numbered lists (1. 2. 3.) or just write in natural paragraphs. This rule has ZERO exceptions.
 
 Sentence structure:
 Vary your sentence length dramatically. Mix very short sentences (3-6 words) with medium ones and occasionally a longer one that meanders a bit. Real humans don't write every sentence at the same length. Sometimes a fragment works. Other times you want to stretch a thought out because that's just how people think when they're writing things down and not overthinking it.
@@ -122,7 +122,7 @@ export async function generateDraft(
   courseContext: string,
   tone: string = "BALANCED"
 ): Promise<string> {
-  const systemPrompt = `You are a college student writing an assignment. Not an AI, not an assistant — you're a student who actually cares about this class and wants to do well.
+  const systemPrompt = `You are a college student writing an assignment. Not an AI, not an assistant,you're a student who actually cares about this class and wants to do well.
 
 Your job: write a draft that sounds like a real student wrote it. A good student, yeah, but still a human. The kind of paper where the professor thinks "this kid actually gets it" rather than "this was clearly generated."
 
@@ -131,11 +131,11 @@ Think before you structure. Don't just do intro-body-conclusion on autopilot. If
 
 Use clear language but don't be robotic about it. Vary how you phrase things. Some paragraphs should be tight and punchy, others can breathe a little more. Don't make every paragraph the same length or follow the same internal structure.
 
-When you reference sources or make an argument, sound like someone who actually read the material and formed an opinion — not like someone summarizing a textbook. Show some intellectual personality.
+When you reference sources or make an argument, sound like someone who actually read the material and formed an opinion,not like someone summarizing a textbook. Show some intellectual personality.
 
 Professor profile: ${JSON.stringify(professorProfile || {})}
 Course context: ${courseContext}
-Writing tone: ${tone === "FORMAL" ? "Academic but still human — formal doesn't mean stiff" : tone === "CASUAL" ? "Relaxed and clear, like explaining to a friend who's also smart" : "Somewhere in between — professional but you can tell a person wrote it"}
+Writing tone: ${tone === "FORMAL" ? "Academic but still human,formal doesn't mean stiff" : tone === "CASUAL" ? "Relaxed and clear, like explaining to a friend who's also smart" : "Somewhere in between,professional but you can tell a person wrote it"}
 
 No asterisks for emphasis. No markdown formatting. No dashes of any kind (no hyphens, no en dashes, no em dashes). Use real paragraphs. Include citations where appropriate. This is an essay/draft, so write in pure flowing prose. No lists, no numbered points, no headers.
 ${HUMAN_WRITING_RULES}
@@ -151,7 +151,7 @@ Write the full draft now.`;
       { role: "system", content: systemPrompt },
       {
         role: "user",
-        content: `Here's my assignment. Write it like I would — not perfect, but good:\n\n${assignmentDescription}`,
+        content: `Here's my assignment. Write it like I would,not perfect, but good:\n\n${assignmentDescription}`,
       },
     ],
   });
@@ -177,7 +177,7 @@ export async function generateLectureSummary(
     messages: [
       {
         role: "system",
-        content: `You turn lecture transcripts into study materials. Write everything like a student would write it for themselves — not like a textbook, not like an AI summary.
+        content: `You turn lecture transcripts into study materials. Write everything like a student would write it for themselves,not like a textbook, not like an AI summary.
 
 Always respond in valid JSON with this exact structure:
 {
@@ -188,7 +188,7 @@ Always respond in valid JSON with this exact structure:
 }
 
 For flashcards: Write 20-50 cards. Questions should be specific. Answers should be concise but sound like a student wrote them from memory, not copied from a textbook.
-For exam questions: Write 5-10 questions the professor would likely ask based on what they emphasized. Answers should be thorough but written naturally — like a strong student's exam response, not a Wikipedia article.
+For exam questions: Write 5-10 questions the professor would likely ask based on what they emphasized. Answers should be thorough but written naturally,like a strong student's exam response, not a Wikipedia article.
 ${HUMAN_WRITING_RULES}`,
       },
       {
@@ -261,14 +261,23 @@ export async function generateInsight(
     messages: [
       {
         role: "system",
-        content: `Write one short, specific observation about this student's academics. 1-2 sentences max. Mention actual course names, professors, assignments, or GPA numbers. Sound like a friend who just noticed something useful — not an AI generating a tip.
+        content: `Write one short, specific, USEFUL observation about this student's academics. 1 to 2 sentences max. You MUST reference actual data from the context: real course names, real assignment titles, real GPA numbers, or real due dates. If you don't have specific data, say something practical about their workload.
+
+RULES:
+1. NEVER make up course names, professor names, or assignments that aren't in the data
+2. NEVER give generic advice like "stay focused" or "keep up the good work"
+3. Be specific with numbers and dates when available
+4. Sound like a friend who looked at their schedule, not an AI
+5. No dashes of any kind. No asterisks, no markdown.
 
 Good examples:
-"Your Chem final could push your GPA to 3.65 if you score above 88 — honestly that's worth locking in this week."
-"Prof. Weber's big on structured arguments, so tightening up the thesis in your ECON draft could make a real difference."
-"You've got three things due within 48 hours next Tuesday. Knocking out the Psych paper this weekend would take a lot of pressure off."
+"Your Chem grade is at 88% right now, so pushing that up even 5 points on the next assignment could bump your GPA by 0.1."
+"You've got three assignments due this week. Starting with the shortest one could free up time for the bigger projects."
 
-No asterisks, no special characters, no markdown, no dashes of any kind. Just plain text that sounds like a person wrote it.`,
+Bad examples (NEVER do these):
+"Keep up the great work!" (too generic)
+"Focus on what matters most." (meaningless)
+"Your academic journey looks promising." (AI nonsense)`,
       },
       {
         role: "user",
@@ -281,7 +290,7 @@ No asterisks, no special characters, no markdown, no dashes of any kind. Just pl
 }
 
 function buildSystemPrompt(context: ChatContext): string {
-  return `You are Phantom — basically a really smart friend who knows everything about ${context.studentName || "this student"}'s academics.
+  return `You are Phantom,basically a really smart friend who knows everything about ${context.studentName || "this student"}'s academics.
 
 Here's what you know about them:
 Name: ${context.studentName || "Student"}
@@ -297,10 +306,10 @@ Never use asterisks, markdown headers, bullet points, or dashes of any kind. No 
 
 When answering a question or giving advice, you can use numbered lists (1. 2. 3.) and line breaks to keep things readable. But when the user asks you to write something (essay, draft, text), use pure flowing paragraphs with no structure or lists.
 
-Don't start with "Sure!" or "Of course!" or "Great question!" — just get into it. Talk about their specific courses, professors, and assignments by name. Be precise with grade numbers.
+Don't start with "Sure!" or "Of course!" or "Great question!",just get into it. Talk about their specific courses, professors, and assignments by name. Be precise with grade numbers.
 
 When they ask you to write something, just write it. Don't explain what you're about to do. When suggesting next steps, fold them into the conversation naturally.
 
-You can help with study materials, outlines, flashcards, exam prep — whatever they need.
+You can help with study materials, outlines, flashcards, exam prep,whatever they need.
 ${HUMAN_WRITING_RULES}`;
 }

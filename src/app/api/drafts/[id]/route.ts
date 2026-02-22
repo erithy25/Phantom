@@ -51,3 +51,61 @@ export async function GET(
     );
   }
 }
+
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const existing = await db.draft.findFirst({
+      where: { id: params.id, userId: session.user.id },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Draft not found." }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const updateData: Record<string, unknown> = {};
+    if (body.content !== undefined) {
+      updateData.content = body.content;
+      updateData.wordCount = body.content.trim().split(/\s+/).filter(Boolean).length;
+    }
+    if (body.status !== undefined) updateData.status = body.status;
+
+    const draft = await db.draft.update({ where: { id: params.id }, data: updateData });
+    return NextResponse.json({ draft });
+  } catch (error) {
+    console.error("Update draft error:", error);
+    return NextResponse.json({ error: "Failed to update draft." }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const draft = await db.draft.findFirst({
+      where: { id: params.id, userId: session.user.id },
+    });
+    if (!draft) {
+      return NextResponse.json({ error: "Draft not found." }, { status: 404 });
+    }
+
+    await db.draft.delete({ where: { id: params.id } });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Delete draft error:", error);
+    return NextResponse.json({ error: "Failed to delete draft." }, { status: 500 });
+  }
+}

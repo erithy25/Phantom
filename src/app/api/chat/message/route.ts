@@ -251,52 +251,56 @@ export async function POST(request: Request) {
       );
     }
 
-    // 9. Stream response back
+    // 9. Collect full response first, then stream it back
+    //    This ensures the AI message is always saved to the DB
     const chunks: string[] = [];
-    const encoder = new TextEncoder();
     const decoder = new TextDecoder();
     const convId = conversation.id;
 
-    const responseStream = new ReadableStream({
-      async start(controller) {
-        const reader = aiStream.getReader();
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const text = decoder.decode(value, { stream: true });
-            chunks.push(text);
-            controller.enqueue(encoder.encode(text));
-          }
-          const finalText = decoder.decode();
-          if (finalText) {
-            chunks.push(finalText);
-            controller.enqueue(encoder.encode(finalText));
-          }
-        } catch (err) {
-          console.error("Stream error:", err);
-        }
-        controller.close();
+    // Read the entire AI response first
+    const aiReader = aiStream.getReader();
+    try {
+      while (true) {
+        const { done, value } = await aiReader.read();
+        if (done) break;
+        const text = decoder.decode(value, { stream: true });
+        chunks.push(text);
+      }
+      const finalText = decoder.decode();
+      if (finalText) {
+        chunks.push(finalText);
+      }
+    } catch (err) {
+      console.error("AI stream read error:", err);
+    }
 
-        // Save to DB after streaming finishes
-        const fullResponse = chunks.join("");
-        if (fullResponse.trim()) {
-          try {
-            await db.message.create({
-              data: {
-                conversationId: convId,
-                role: "assistant",
-                content: fullResponse,
-              },
-            });
-            await db.conversation.update({
-              where: { id: convId },
-              data: { updatedAt: new Date() },
-            });
-          } catch (dbErr) {
-            console.error("Failed to save AI response:", dbErr);
-          }
-        }
+    const fullResponse = chunks.join("");
+
+    // Save to DB BEFORE sending response to client (guarantees persistence)
+    if (fullResponse.trim()) {
+      try {
+        await db.message.create({
+          data: {
+            conversationId: convId,
+            role: "assistant",
+            content: fullResponse,
+          },
+        });
+        await db.conversation.update({
+          where: { id: convId },
+          data: { updatedAt: new Date() },
+        });
+      } catch (dbErr) {
+        console.error("Failed to save AI response:", dbErr);
+      }
+    }
+
+    // Now stream the already-collected response to the client
+    const encoder = new TextEncoder();
+    const responseStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(fullResponse));
+        controller.close();
       },
     });
 

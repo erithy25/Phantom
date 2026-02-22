@@ -71,3 +71,30 @@ export async function GET(
     );
   }
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const lecture = await db.lecture.findFirst({
+      where: { id: params.id, userId: session.user.id },
+    });
+
+    if (!lecture) {
+      return NextResponse.json({ error: "Lecture not found." }, { status: 404 });
+    }
+
+    await db.lecture.delete({ where: { id: params.id } });
+
+    return NextResponse.json({ success: true, message: "Lecture deleted successfully." });
+  } catch (error) {
+    console.error("Delete lecture error:", error);
+    return NextResponse.json({ error: "Failed to delete lecture." }, { status: 500 });
+  }
+}

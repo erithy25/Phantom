@@ -150,3 +150,40 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const task = await db.assignment.findFirst({
+      where: {
+        id: params.id,
+        userId: session.user.id,
+      },
+    });
+
+    if (!task) {
+      return NextResponse.json(
+        { error: "Task not found." },
+        { status: 404 }
+      );
+    }
+
+    await db.assignment.delete({ where: { id: params.id } });
+
+    return NextResponse.json({ success: true, message: "Task deleted successfully." });
+  } catch (error) {
+    console.error("Delete task error:", error);
+    return NextResponse.json(
+      { error: "Failed to delete task." },
+      { status: 500 }
+    );
+  }
+}

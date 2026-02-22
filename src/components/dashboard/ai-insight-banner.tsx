@@ -39,7 +39,7 @@ export function AiInsightBanner({ insight: insightProp }: AiInsightBannerProps) 
       } catch {
         // silently fail
       }
-      setFullText("Welcome to Phantom! Add your courses and tasks to get personalized AI insights here.");
+      setFullText("Add your courses and upcoming tasks to unlock personalized AI insights.");
     }
 
     fetchInsight();
