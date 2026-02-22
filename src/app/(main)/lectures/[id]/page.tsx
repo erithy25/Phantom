@@ -18,48 +18,85 @@ import {
   HelpCircle,
   Clock,
   Calendar,
-  ExternalLink,
+  Lightbulb,
+  GraduationCap,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate, formatDuration } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { FlashcardDeck } from "@/components/lectures/flashcard-deck";
-import type { Lecture, Flashcard, ExamQuestion } from "@/types";
+import type { Flashcard, ExamQuestion } from "@/types";
 
 /* -------------------------------------------------------------------------- */
-/*  Transcript Line                                                            */
+/*  Types                                                                      */
 /* -------------------------------------------------------------------------- */
 
-interface TranscriptLine {
-  timestamp: number;
-  text: string;
+interface LectureData {
+  id: string;
+  title: string | null;
+  date: string;
+  audioUrl: string | null;
+  transcript: string | null;
+  summary: string | null;
+  durationSeconds: number | null;
+  topics: TopicsData | string[] | null;
+  captureMethod: string | null;
+  processingStatus: string;
+  course: { id: string; name: string; code: string; professorName: string | null } | null;
+  flashcards: Flashcard[];
+  examQuestions: ExamQuestion[];
+  flashcardCount: number;
+  examQuestionCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
+
+interface TopicsData {
+  topics?: string[];
+  keyTakeaways?: string[];
+  conceptsExplained?: Array<{ concept: string; explanation: string }>;
+}
+
+function parseTopics(raw: LectureData["topics"]): {
+  topicList: string[];
+  keyTakeaways: string[];
+  conceptsExplained: Array<{ concept: string; explanation: string }>;
+} {
+  if (!raw) return { topicList: [], keyTakeaways: [], conceptsExplained: [] };
+  if (Array.isArray(raw)) return { topicList: raw as string[], keyTakeaways: [], conceptsExplained: [] };
+  const t = raw as TopicsData;
+  return {
+    topicList: t.topics || [],
+    keyTakeaways: t.keyTakeaways || [],
+    conceptsExplained: t.conceptsExplained || [],
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Transcript helpers                                                         */
+/* -------------------------------------------------------------------------- */
+
+interface TranscriptLine { timestamp: number; text: string; }
 
 function parseTranscript(raw: string | null): TranscriptLine[] {
   if (!raw) return [];
-  // Expected format: "[00:01:23] Text here\n[00:01:45] More text..."
-  // Fallback: treat entire text as one block
   const lines = raw.split("\n").filter(Boolean);
   const parsed: TranscriptLine[] = [];
-
   for (const line of lines) {
     const match = line.match(/^\[(\d{2}):(\d{2}):(\d{2})\]\s*(.*)$/);
     if (match) {
-      const hours = parseInt(match[1], 10);
-      const mins = parseInt(match[2], 10);
-      const secs = parseInt(match[3], 10);
-      parsed.push({
-        timestamp: hours * 3600 + mins * 60 + secs,
-        text: match[4],
-      });
+      parsed.push({ timestamp: parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseInt(match[3]), text: match[4] });
     } else {
-      const simpleMatch = line.match(/^\[(\d{1,2}):(\d{2})\]\s*(.*)$/);
-      if (simpleMatch) {
-        const mins = parseInt(simpleMatch[1], 10);
-        const secs = parseInt(simpleMatch[2], 10);
-        parsed.push({ timestamp: mins * 60 + secs, text: simpleMatch[3] });
+      const simple = line.match(/^\[(\d{1,2}):(\d{2})\]\s*(.*)$/);
+      if (simple) {
+        parsed.push({ timestamp: parseInt(simple[1]) * 60 + parseInt(simple[2]), text: simple[3] });
       } else {
         parsed.push({ timestamp: parsed.length * 30, text: line });
       }
@@ -72,127 +109,23 @@ function formatTimestamp(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
-  if (h > 0) {
-    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  }
-  return `${m}:${String(s).padStart(2, "0")}`;
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Audio Player                                                               */
+/*  Summary renderer (handles **bold** sections)                               */
 /* -------------------------------------------------------------------------- */
 
-interface AudioPlayerProps {
-  audioUrl: string | null;
-  duration: number;
-  currentTime: number;
-  onSeek: (time: number) => void;
-  isPlaying: boolean;
-  onTogglePlay: () => void;
-  playbackRate: number;
-  onChangeRate: () => void;
-  onSkip: (delta: number) => void;
-}
-
-function AudioPlayer({
-  duration,
-  currentTime,
-  onSeek,
-  isPlaying,
-  onTogglePlay,
-  playbackRate,
-  onChangeRate,
-  onSkip,
-}: AudioPlayerProps) {
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-
+function SummaryContent({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
   return (
-    <div
-      className={cn(
-        "sticky bottom-0 z-20",
-        "border-t border-phantom-border",
-        "bg-phantom-bgSecondary/95 backdrop-blur-sm",
-        "px-6 py-3"
-      )}
-    >
-      {/* Progress Bar */}
-      <div
-        className="relative h-1 bg-phantom-accentBg rounded-full mb-3 cursor-pointer group"
-        onClick={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          const pct = (e.clientX - rect.left) / rect.width;
-          onSeek(pct * duration);
-        }}
-      >
-        <div
-          className="absolute left-0 top-0 h-full bg-phantom-text/70 rounded-full transition-[width] duration-100"
-          style={{ width: `${progress}%` }}
-        />
-        <div
-          className={cn(
-            "absolute top-1/2 -translate-y-1/2 w-3 h-3",
-            "bg-phantom-text rounded-full shadow-phantom-sm",
-            "opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-          )}
-          style={{ left: `calc(${progress}% - 6px)` }}
-        />
-      </div>
-
-      {/* Controls */}
-      <div className="flex items-center justify-between">
-        <span className="text-micro text-phantom-textMuted font-mono w-16">
-          {formatTimestamp(Math.floor(currentTime))}
-        </span>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onSkip(-15)}
-            className="w-8 h-8 flex items-center justify-center rounded-sm text-phantom-textTertiary hover:text-phantom-text transition-colors"
-            aria-label="Skip back 15 seconds"
-          >
-            <SkipBack className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={onTogglePlay}
-            className={cn(
-              "w-10 h-10 flex items-center justify-center rounded-full",
-              "bg-phantom-text text-phantom-bg",
-              "hover:opacity-90 active:scale-95",
-              "transition-all duration-150"
-            )}
-            aria-label={isPlaying ? "Pause" : "Play"}
-          >
-            {isPlaying ? (
-              <Pause className="w-4 h-4" />
-            ) : (
-              <Play className="w-4 h-4 ml-0.5" />
-            )}
-          </button>
-
-          <button
-            onClick={() => onSkip(15)}
-            className="w-8 h-8 flex items-center justify-center rounded-sm text-phantom-textTertiary hover:text-phantom-text transition-colors"
-            aria-label="Skip forward 15 seconds"
-          >
-            <SkipForward className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="flex items-center gap-3 w-16 justify-end">
-          <button
-            onClick={onChangeRate}
-            className={cn(
-              "px-2 py-0.5 rounded-sm text-[11px] font-mono font-medium",
-              "border border-phantom-border text-phantom-textSecondary",
-              "hover:border-phantom-borderHover hover:text-phantom-text",
-              "transition-colors duration-150"
-            )}
-          >
-            {playbackRate}x
-          </button>
-        </div>
-      </div>
+    <div className="text-body text-phantom-textSecondary leading-[1.8] whitespace-pre-line">
+      {parts.map((part, i) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return <span key={i} className="text-phantom-text font-semibold text-[15px]">{part.slice(2, -2)}</span>;
+        }
+        return <span key={i}>{part}</span>;
+      })}
     </div>
   );
 }
@@ -202,58 +135,67 @@ function AudioPlayer({
 /* -------------------------------------------------------------------------- */
 
 function ExamQuestionsSection({ questions }: { questions: ExamQuestion[] }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
 
   return (
-    <div className="space-y-2">
-      {questions.map((q, i) => (
-        <div
-          key={q.id}
-          className={cn(
-            "rounded-lg border border-phantom-border",
-            "bg-phantom-bgCard overflow-hidden"
-          )}
-        >
-          <button
-            onClick={() => setExpandedId(expandedId === q.id ? null : q.id)}
-            className="w-full flex items-start gap-3 p-3 text-left hover:bg-phantom-bgCardHover transition-colors"
-          >
-            <span className="shrink-0 w-6 h-6 rounded-md bg-phantom-accentBg flex items-center justify-center text-[11px] font-mono text-phantom-textTertiary">
-              {i + 1}
-            </span>
-            <span className="text-body text-phantom-text flex-1">
-              {q.question}
-            </span>
-            <ChevronDown
-              className={cn(
-                "w-4 h-4 text-phantom-textMuted shrink-0 transition-transform duration-200",
-                expandedId === q.id && "rotate-180"
-              )}
-            />
+    <div className="space-y-4">
+      {questions.map((q, i) => {
+        const isRevealed = revealed[q.id];
+        return (
+          <motion.div key={q.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04, duration: 0.2 }}
+            className="rounded-lg border border-phantom-border bg-phantom-bgCard p-5">
+            <div className="flex items-start gap-3">
+              <span className="text-label-mono text-phantom-textMuted font-mono shrink-0 mt-0.5">Q{i + 1}</span>
+              <div className="flex-1">
+                {q.topic && <Badge variant="default" className="text-[10px] mb-2">{q.topic}</Badge>}
+                <p className="text-body text-phantom-text leading-relaxed mb-3">{q.question}</p>
+                {isRevealed ? (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
+                    <div className="border-t border-phantom-border pt-3">
+                      <span className="text-[10px] font-mono text-phantom-textMuted uppercase block mb-2">Answer</span>
+                      <p className="text-body text-phantom-textSecondary leading-relaxed whitespace-pre-line">{q.answer}</p>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <Button variant="default" size="sm" onClick={() => setRevealed((p) => ({ ...p, [q.id]: true }))}>
+                    <Eye className="w-3 h-3" /> Show Answer
+                  </Button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Audio Player                                                               */
+/* -------------------------------------------------------------------------- */
+
+function AudioPlayer({ duration, currentTime, onSeek, isPlaying, onTogglePlay, playbackRate, onChangeRate, onSkip }: {
+  duration: number; currentTime: number; onSeek: (t: number) => void; isPlaying: boolean; onTogglePlay: () => void; playbackRate: number; onChangeRate: () => void; onSkip: (d: number) => void;
+}) {
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  return (
+    <div className={cn("sticky bottom-0 z-20 border-t border-phantom-border bg-phantom-bgSecondary/95 backdrop-blur-sm px-6 py-3")}>
+      <div className="relative h-1 bg-phantom-accentBg rounded-full mb-3 cursor-pointer group" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); onSeek(((e.clientX - r.left) / r.width) * duration); }}>
+        <div className="absolute left-0 top-0 h-full bg-phantom-text/70 rounded-full transition-[width] duration-100" style={{ width: `${progress}%` }} />
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-micro text-phantom-textMuted font-mono w-16">{formatTimestamp(Math.floor(currentTime))}</span>
+        <div className="flex items-center gap-2">
+          <button onClick={() => onSkip(-15)} className="w-8 h-8 flex items-center justify-center rounded-sm text-phantom-textTertiary hover:text-phantom-text transition-colors"><SkipBack className="w-4 h-4" /></button>
+          <button onClick={onTogglePlay} className="w-10 h-10 flex items-center justify-center rounded-full bg-phantom-text text-phantom-bg hover:opacity-90 active:scale-95 transition-all duration-150">
+            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
           </button>
-          <AnimatePresence>
-            {expandedId === q.id && q.answer && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                <div className="px-3 pb-3 pl-12">
-                  <p className="text-body text-phantom-textSecondary">
-                    {q.answer}
-                  </p>
-                  {q.topic && (
-                    <span className="inline-block mt-2 text-micro text-phantom-textMuted font-mono">
-                      Topic: {q.topic}
-                    </span>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <button onClick={() => onSkip(15)} className="w-8 h-8 flex items-center justify-center rounded-sm text-phantom-textTertiary hover:text-phantom-text transition-colors"><SkipForward className="w-4 h-4" /></button>
         </div>
-      ))}
+        <div className="flex items-center gap-3 w-16 justify-end">
+          <button onClick={onChangeRate} className="px-2 py-0.5 rounded-sm text-[11px] font-mono font-medium border border-phantom-border text-phantom-textSecondary hover:border-phantom-borderHover hover:text-phantom-text transition-colors duration-150">{playbackRate}x</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -267,9 +209,8 @@ export default function LectureDetailPage() {
   const router = useRouter();
   const lectureId = params?.id as string;
 
-  const [lecture, setLecture] = useState<Lecture | null>(null);
+  const [lecture, setLecture] = useState<LectureData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [summaryExpanded, setSummaryExpanded] = useState(false);
 
   // Audio state
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -278,21 +219,13 @@ export default function LectureDetailPage() {
   const [playbackRate, setPlaybackRate] = useState(1);
   const rates = useMemo(() => [1, 1.5, 2], []);
 
-  // Active tab for content area
-  const [activeTab, setActiveTab] = useState<
-    "transcript" | "flashcards" | "examQs"
-  >("transcript");
-
-  const transcriptLines = parseTranscript(lecture?.transcript ?? null);
-
-  // Fetch lecture
   useEffect(() => {
     async function fetchLecture() {
       try {
         const res = await fetch(`/api/lectures/${lectureId}`);
         if (res.ok) {
           const data = await res.json();
-          setLecture(data);
+          setLecture(data.lecture);
         }
       } catch (err) {
         console.error("Failed to fetch lecture:", err);
@@ -308,24 +241,16 @@ export default function LectureDetailPage() {
     if (!lecture?.audioUrl) return;
     const audio = new Audio(lecture.audioUrl);
     audioRef.current = audio;
-
-    audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
-    audio.addEventListener("ended", () => setIsPlaying(false));
-
-    return () => {
-      audio.pause();
-      audio.removeEventListener("timeupdate", () => {});
-      audio.removeEventListener("ended", () => {});
-    };
+    const onTime = () => setCurrentTime(audio.currentTime);
+    const onEnd = () => setIsPlaying(false);
+    audio.addEventListener("timeupdate", onTime);
+    audio.addEventListener("ended", onEnd);
+    return () => { audio.pause(); audio.removeEventListener("timeupdate", onTime); audio.removeEventListener("ended", onEnd); };
   }, [lecture?.audioUrl]);
 
   const togglePlay = useCallback(() => {
     if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play();
-    }
+    if (isPlaying) audioRef.current.pause(); else audioRef.current.play();
     setIsPlaying(!isPlaying);
   }, [isPlaying]);
 
@@ -335,21 +260,12 @@ export default function LectureDetailPage() {
     setCurrentTime(time);
   }, []);
 
-  const skip = useCallback(
-    (delta: number) => {
-      if (!audioRef.current) return;
-      const newTime = Math.max(
-        0,
-        Math.min(
-          audioRef.current.duration || 0,
-          audioRef.current.currentTime + delta
-        )
-      );
-      audioRef.current.currentTime = newTime;
-      setCurrentTime(newTime);
-    },
-    []
-  );
+  const skip = useCallback((delta: number) => {
+    if (!audioRef.current) return;
+    const t = Math.max(0, Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + delta));
+    audioRef.current.currentTime = t;
+    setCurrentTime(t);
+  }, []);
 
   const cycleRate = useCallback(() => {
     const idx = rates.indexOf(playbackRate);
@@ -358,27 +274,13 @@ export default function LectureDetailPage() {
     if (audioRef.current) audioRef.current.playbackRate = next;
   }, [playbackRate, rates]);
 
-  // Find active transcript line
-  const activeLineIdx = transcriptLines.reduce((acc, line, i) => {
-    return line.timestamp <= currentTime ? i : acc;
-  }, 0);
-
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-4 w-40" />
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 mt-8">
-          <div className="space-y-3">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <Skeleton key={i} className="h-6 w-full" />
-            ))}
-          </div>
-          <div className="space-y-3">
-            <Skeleton className="h-32 w-full rounded-lg" />
-            <Skeleton className="h-32 w-full rounded-lg" />
-          </div>
-        </div>
+      <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+        <Skeleton className="h-5 w-24" />
+        <div className="space-y-3"><Skeleton className="h-8 w-2/3" /><Skeleton className="h-4 w-1/3" /></div>
+        <div className="flex gap-2">{[1,2,3,4].map((n) => <Skeleton key={n} className="h-8 w-24 rounded-md" />)}</div>
+        <div className="space-y-4"><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-5/6" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-3/4" /></div>
       </div>
     );
   }
@@ -386,303 +288,168 @@ export default function LectureDetailPage() {
   if (!lecture) {
     return (
       <div className="max-w-5xl mx-auto px-6 py-20 text-center">
-        <p className="text-body text-phantom-textSecondary mb-4">
-          Lecture not found.
-        </p>
-        <Button variant="default" size="sm" onClick={() => router.push("/lectures")}>
-          <ArrowLeft className="w-4 h-4" />
-          Back to Lectures
-        </Button>
+        <p className="text-body text-phantom-textSecondary mb-4">Lecture not found.</p>
+        <Button variant="default" size="sm" onClick={() => router.push("/lectures")}><ArrowLeft className="w-4 h-4" /> Back to Lectures</Button>
       </div>
     );
   }
 
+  const { topicList, keyTakeaways, conceptsExplained } = parseTopics(lecture.topics);
+  const hasAudio = !!lecture.audioUrl;
+  const hasSummary = !!lecture.summary;
+  const hasFlashcards = lecture.flashcards.length > 0;
+  const hasExamQs = lecture.examQuestions.length > 0;
+  const hasConcepts = conceptsExplained.length > 0;
+  const hasTakeaways = keyTakeaways.length > 0;
+  const hasTranscript = !!lecture.transcript && !lecture.transcript.startsWith("[Generated from topic:");
   const duration = lecture.durationSeconds || 0;
+  const transcriptLines = parseTranscript(hasTranscript ? lecture.transcript : null);
+
+  // Determine default tab
+  const defaultTab = hasSummary ? "summary" : hasConcepts ? "concepts" : hasFlashcards ? "flashcards" : hasExamQs ? "examqs" : "notes";
 
   return (
     <div className="flex flex-col h-full">
-      {/* Top Section */}
-      <div className="max-w-6xl mx-auto w-full px-6 py-6 flex-1 overflow-auto">
-        {/* Back + Title */}
-        <div className="mb-6">
-          <Link
-            href="/lectures"
-            className="inline-flex items-center gap-1.5 text-caption text-phantom-textTertiary hover:text-phantom-text transition-colors mb-3"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Back to Lectures
-          </Link>
+      <div className="max-w-4xl mx-auto w-full px-6 py-6 flex-1 overflow-auto">
+        {/* Back link */}
+        <Link href="/lectures" className="inline-flex items-center gap-1 text-caption text-phantom-textTertiary hover:text-phantom-text transition-colors mb-6">
+          <ArrowLeft className="w-3.5 h-3.5" /> Back to Lectures
+        </Link>
 
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-page-title text-phantom-text mb-1">
-                {lecture.title || "Untitled Lecture"}
-              </h1>
-              <div className="flex items-center gap-3 text-caption text-phantom-textTertiary">
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  {formatDate(lecture.date)}
-                </span>
-                {duration > 0 && (
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {formatDuration(duration)}
-                  </span>
-                )}
-                {lecture.course && (
-                  <Badge variant="default">{lecture.course.code}</Badge>
-                )}
+        {/* Header */}
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+          <div className="flex items-center gap-3 mb-3">
+            {lecture.course && <Badge variant="default" className="text-[11px]">{lecture.course.code}</Badge>}
+            {lecture.captureMethod === "GENERATED" && (
+              <Badge variant="success" className="text-[11px]"><Zap className="w-3 h-3 mr-1" /> AI Generated</Badge>
+            )}
+            <span className="text-caption text-phantom-textMuted flex items-center gap-1">
+              <Calendar className="w-3 h-3" /> {formatDate(lecture.date)}
+            </span>
+            {duration > 0 && (
+              <span className="text-caption text-phantom-textMuted flex items-center gap-1">
+                <Clock className="w-3 h-3" /> {formatDuration(duration)}
+              </span>
+            )}
+          </div>
+          <h1 className="text-page-title text-phantom-text mb-2">{lecture.title || "Untitled Lecture"}</h1>
+          {lecture.course && (
+            <p className="text-body text-phantom-textSecondary">
+              {lecture.course.name}{lecture.course.professorName ? ` with ${lecture.course.professorName}` : ""}
+            </p>
+          )}
+
+          {/* Stats */}
+          <div className="flex items-center gap-4 mt-4">
+            {hasFlashcards && <div className="flex items-center gap-1.5 text-caption text-phantom-textTertiary"><Layers className="w-3.5 h-3.5" /> {lecture.flashcards.length} Flashcards</div>}
+            {hasExamQs && <div className="flex items-center gap-1.5 text-caption text-phantom-textTertiary"><HelpCircle className="w-3.5 h-3.5" /> {lecture.examQuestions.length} Exam Questions</div>}
+            {topicList.length > 0 && <div className="flex items-center gap-1.5 text-caption text-phantom-textTertiary"><BookOpen className="w-3.5 h-3.5" /> {topicList.length} Topics</div>}
+          </div>
+        </motion.div>
+
+        {/* Key Takeaways (always visible if present) */}
+        {hasTakeaways && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
+            <div className={cn("rounded-xl border-2 border-phantom-borderHover bg-phantom-bgCard p-6 relative overflow-hidden")}>
+              <div className="absolute top-0 left-0 w-24 h-24 bg-phantom-accentBg rounded-full blur-3xl opacity-40 -translate-x-6 -translate-y-6" />
+              <div className="relative">
+                <div className="flex items-center gap-2 mb-4">
+                  <Lightbulb className="w-5 h-5 text-phantom-text" />
+                  <h2 className="text-card-title text-phantom-text">Key Takeaways</h2>
+                </div>
+                <div className="space-y-3">
+                  {keyTakeaways.map((t, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <CheckCircle2 className="w-4 h-4 text-phantom-textTertiary shrink-0 mt-0.5" />
+                      <p className="text-body text-phantom-textSecondary leading-relaxed">{t}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Collapsible Summary */}
-        {lecture.summary && (
-          <motion.div
-            className={cn(
-              "mb-6 rounded-lg border border-phantom-border",
-              "bg-phantom-bgCard overflow-hidden"
-            )}
-          >
-            <button
-              onClick={() => setSummaryExpanded(!summaryExpanded)}
-              className="w-full flex items-center justify-between p-4 hover:bg-phantom-bgCardHover transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-phantom-textTertiary" />
-                <span className="text-card-title">Summary</span>
-              </div>
-              {summaryExpanded ? (
-                <ChevronUp className="w-4 h-4 text-phantom-textMuted" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-phantom-textMuted" />
-              )}
-            </button>
-            <AnimatePresence>
-              {summaryExpanded && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.25 }}
-                >
-                  <div className="px-4 pb-4 text-body text-phantom-textSecondary leading-relaxed whitespace-pre-wrap">
-                    {lecture.summary}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </motion.div>
         )}
 
-        {/* Main Content Area */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
-          {/* Left: Tabs + Content */}
-          <div>
-            {/* Tab Bar */}
-            <div className="flex items-center gap-1 border-b border-phantom-border mb-4">
-              {[
-                { id: "transcript" as const, label: "Transcript", icon: FileText },
-                { id: "flashcards" as const, label: "Flashcards", icon: Layers },
-                { id: "examQs" as const, label: "Exam Questions", icon: HelpCircle },
-              ].map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  onClick={() => setActiveTab(id)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 pb-2.5 pt-1",
-                    "text-body font-medium border-b-2 -mb-px",
-                    "transition-colors duration-200",
-                    activeTab === id
-                      ? "text-phantom-text border-phantom-text"
-                      : "text-phantom-textMuted border-transparent hover:text-phantom-textSecondary"
-                  )}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* Transcript */}
-            {activeTab === "transcript" && (
-              <div className="space-y-1 max-h-[60vh] overflow-y-auto pr-2">
-                {transcriptLines.length > 0 ? (
-                  transcriptLines.map((line, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: i * 0.01 }}
-                      className={cn(
-                        "flex gap-3 p-2 rounded-md cursor-pointer",
-                        "transition-colors duration-200",
-                        i === activeLineIdx
-                          ? "bg-phantom-accentBg"
-                          : "hover:bg-phantom-bgCardHover"
-                      )}
-                      onClick={() => seek(line.timestamp)}
-                    >
-                      <span className="shrink-0 text-micro font-mono text-phantom-textMuted w-12 text-right pt-0.5">
-                        {formatTimestamp(line.timestamp)}
-                      </span>
-                      <p
-                        className={cn(
-                          "text-body flex-1",
-                          i === activeLineIdx
-                            ? "text-phantom-text"
-                            : "text-phantom-textSecondary"
-                        )}
-                      >
-                        {line.text}
-                      </p>
-                    </motion.div>
-                  ))
-                ) : (
-                  <div className="py-12 text-center">
-                    <FileText className="w-8 h-8 text-phantom-textMuted mx-auto mb-3" />
-                    <p className="text-body text-phantom-textSecondary">
-                      No transcript available yet.
-                    </p>
-                    <p className="text-caption text-phantom-textMuted mt-1">
-                      The transcript will appear once processing is complete.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Flashcards */}
-            {activeTab === "flashcards" && (
-              <div>
-                {lecture.flashcards && lecture.flashcards.length > 0 ? (
-                  <FlashcardDeck flashcards={lecture.flashcards} />
-                ) : (
-                  <div className="py-12 text-center">
-                    <Layers className="w-8 h-8 text-phantom-textMuted mx-auto mb-3" />
-                    <p className="text-body text-phantom-textSecondary">
-                      No flashcards generated yet.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Exam Questions */}
-            {activeTab === "examQs" && (
-              <div>
-                {lecture.examQuestions && lecture.examQuestions.length > 0 ? (
-                  <ExamQuestionsSection questions={lecture.examQuestions} />
-                ) : (
-                  <div className="py-12 text-center">
-                    <HelpCircle className="w-8 h-8 text-phantom-textMuted mx-auto mb-3" />
-                    <p className="text-body text-phantom-textSecondary">
-                      No exam questions generated yet.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+        {/* Topic badges */}
+        {topicList.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-6">
+            {topicList.map((t, i) => <Badge key={i} variant="default">{t}</Badge>)}
           </div>
+        )}
 
-          {/* Right: Sidebar - Related Materials */}
-          <div className="hidden lg:block space-y-4">
-            <div className="rounded-lg border border-phantom-border bg-phantom-bgCard p-4">
-              <h3 className="text-card-title text-phantom-text mb-3">
-                Lecture Info
-              </h3>
-              <div className="space-y-3">
-                {lecture.course && (
-                  <div>
-                    <span className="text-label-mono text-phantom-textMuted block mb-1">
-                      COURSE
-                    </span>
-                    <span className="text-body text-phantom-text">
-                      {lecture.course.name}
-                    </span>
+        {/* Tabbed Content */}
+        <Tabs defaultValue={defaultTab}>
+          <TabsList>
+            {hasSummary && <TabsTrigger value="summary" className="gap-1.5"><BookOpen className="w-3.5 h-3.5" /> Lecture Recap</TabsTrigger>}
+            {hasConcepts && <TabsTrigger value="concepts" className="gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> Concepts</TabsTrigger>}
+            {hasFlashcards && <TabsTrigger value="flashcards" className="gap-1.5"><Layers className="w-3.5 h-3.5" /> Flashcards ({lecture.flashcards.length})</TabsTrigger>}
+            {hasExamQs && <TabsTrigger value="examqs" className="gap-1.5"><HelpCircle className="w-3.5 h-3.5" /> Exam Prep ({lecture.examQuestions.length})</TabsTrigger>}
+            {hasTranscript && <TabsTrigger value="notes" className="gap-1.5"><FileText className="w-3.5 h-3.5" /> Original Notes</TabsTrigger>}
+          </TabsList>
+
+          {/* Summary */}
+          {hasSummary && (
+            <TabsContent value="summary">
+              <div className="rounded-lg border border-phantom-border bg-phantom-bgCard p-6">
+                <SummaryContent text={lecture.summary!} />
+              </div>
+            </TabsContent>
+          )}
+
+          {/* Concepts Explained */}
+          {hasConcepts && (
+            <TabsContent value="concepts">
+              <div className="space-y-4">
+                {conceptsExplained.map((ce, i) => (
+                  <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05, duration: 0.2 }}
+                    className="rounded-lg border border-phantom-border bg-phantom-bgCard p-5">
+                    <h3 className="text-card-title text-phantom-text mb-3">{ce.concept}</h3>
+                    <p className="text-body text-phantom-textSecondary leading-[1.8] whitespace-pre-line">{ce.explanation}</p>
+                  </motion.div>
+                ))}
+              </div>
+            </TabsContent>
+          )}
+
+          {/* Flashcards */}
+          {hasFlashcards && (
+            <TabsContent value="flashcards">
+              <FlashcardDeck flashcards={lecture.flashcards} />
+            </TabsContent>
+          )}
+
+          {/* Exam Questions */}
+          {hasExamQs && (
+            <TabsContent value="examqs">
+              <ExamQuestionsSection questions={lecture.examQuestions} />
+            </TabsContent>
+          )}
+
+          {/* Original Notes / Transcript */}
+          {hasTranscript && (
+            <TabsContent value="notes">
+              <div className="rounded-lg border border-phantom-border bg-phantom-bgCard p-6">
+                {hasAudio && transcriptLines.length > 0 ? (
+                  <div className="space-y-1 max-h-[60vh] overflow-y-auto">
+                    {transcriptLines.map((line, i) => (
+                      <div key={i} className={cn("flex gap-3 p-2 rounded-md cursor-pointer transition-colors", "hover:bg-phantom-bgCardHover")} onClick={() => seek(line.timestamp)}>
+                        <span className="shrink-0 text-micro font-mono text-phantom-textMuted w-12 text-right pt-0.5">{formatTimestamp(line.timestamp)}</span>
+                        <p className="text-body text-phantom-textSecondary flex-1">{line.text}</p>
+                      </div>
+                    ))}
                   </div>
-                )}
-                {lecture.topics && lecture.topics.length > 0 && (
-                  <div>
-                    <span className="text-label-mono text-phantom-textMuted block mb-1">
-                      TOPICS
-                    </span>
-                    <div className="flex flex-wrap gap-1">
-                      {lecture.topics.map((topic, i) => (
-                        <Badge key={i} variant="default" className="text-[10px]">
-                          {topic}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {lecture.captureMethod && (
-                  <div>
-                    <span className="text-label-mono text-phantom-textMuted block mb-1">
-                      CAPTURE
-                    </span>
-                    <span className="text-body text-phantom-textSecondary capitalize">
-                      {lecture.captureMethod.toLowerCase()}
-                    </span>
-                  </div>
+                ) : (
+                  <p className="text-body text-phantom-textSecondary leading-[1.8] whitespace-pre-line">{lecture.transcript}</p>
                 )}
               </div>
-            </div>
-
-            {/* Quick Stats */}
-            <div className="rounded-lg border border-phantom-border bg-phantom-bgCard p-4">
-              <h3 className="text-card-title text-phantom-text mb-3">
-                Study Materials
-              </h3>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-body">
-                  <span className="text-phantom-textSecondary flex items-center gap-2">
-                    <Layers className="w-3.5 h-3.5" />
-                    Flashcards
-                  </span>
-                  <span className="text-phantom-text font-mono">
-                    {lecture.flashcards?.length ?? 0}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-body">
-                  <span className="text-phantom-textSecondary flex items-center gap-2">
-                    <HelpCircle className="w-3.5 h-3.5" />
-                    Exam Questions
-                  </span>
-                  <span className="text-phantom-text font-mono">
-                    {lecture.examQuestions?.length ?? 0}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-body">
-                  <span className="text-phantom-textSecondary flex items-center gap-2">
-                    <FileText className="w-3.5 h-3.5" />
-                    Transcript
-                  </span>
-                  <span className="text-phantom-text font-mono">
-                    {transcriptLines.length > 0 ? `${transcriptLines.length} lines` : "N/A"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Related Lectures (placeholder) */}
-            <div className="rounded-lg border border-phantom-border bg-phantom-bgCard p-4">
-              <h3 className="text-card-title text-phantom-text mb-3">
-                Related Materials
-              </h3>
-              <p className="text-caption text-phantom-textMuted">
-                Related lectures and resources from this course will appear here.
-              </p>
-            </div>
-          </div>
-        </div>
+            </TabsContent>
+          )}
+        </Tabs>
       </div>
 
-      {/* Audio Player (pinned bottom) */}
-      {lecture.audioUrl && (
+      {/* Audio Player (pinned bottom, only for audio lectures) */}
+      {hasAudio && (
         <AudioPlayer
-          audioUrl={lecture.audioUrl}
           duration={duration}
           currentTime={currentTime}
           onSeek={seek}

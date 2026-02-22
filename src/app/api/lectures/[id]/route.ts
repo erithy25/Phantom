@@ -28,11 +28,23 @@ export async function GET(
             professorName: true,
           },
         },
-        _count: {
+        flashcards: {
           select: {
-            flashcards: true,
-            examQuestions: true,
+            id: true,
+            question: true,
+            answer: true,
+            difficulty: true,
           },
+          orderBy: { createdAt: "asc" },
+        },
+        examQuestions: {
+          select: {
+            id: true,
+            question: true,
+            answer: true,
+            topic: true,
+          },
+          orderBy: { createdAt: "asc" },
         },
       },
     });
@@ -57,8 +69,10 @@ export async function GET(
         captureMethod: lecture.captureMethod,
         processingStatus: lecture.processingStatus,
         course: lecture.course,
-        flashcardCount: lecture._count.flashcards,
-        examQuestionCount: lecture._count.examQuestions,
+        flashcards: lecture.flashcards,
+        examQuestions: lecture.examQuestions,
+        flashcardCount: lecture.flashcards.length,
+        examQuestionCount: lecture.examQuestions.length,
         createdAt: lecture.createdAt,
         updatedAt: lecture.updatedAt,
       },

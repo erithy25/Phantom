@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload,
@@ -18,6 +19,9 @@ import {
   Trash2,
   X,
   PenLine,
+  Zap,
+  GraduationCap,
+  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate, formatDuration } from "@/lib/utils";
@@ -82,6 +86,193 @@ function ProcessingStatus({ status }: { status: string }) {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Generate from Topic (THE main feature)                                     */
+/* -------------------------------------------------------------------------- */
+
+function GenerateFromTopic({ courses, onGenerated }: { courses: Course[]; onGenerated: () => void }) {
+  const router = useRouter();
+  const [courseId, setCourseId] = useState("");
+  const [topic, setTopic] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleGenerate = async () => {
+    if (!courseId || !topic.trim()) return;
+    setGenerating(true);
+    setError("");
+    try {
+      const res = await fetch("/api/lectures/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courseId, topic: topic.trim(), title: topic.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTopic("");
+        onGenerated();
+        if (data.lecture?.id) {
+          router.push(`/lectures/${data.lecture.id}`);
+        }
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to generate. Try again.");
+      }
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className={cn(
+      "rounded-xl border-2 border-phantom-borderHover bg-phantom-bgCard p-6",
+      "relative overflow-hidden"
+    )}>
+      <div className="absolute top-0 right-0 w-32 h-32 bg-phantom-accentBg rounded-full blur-3xl opacity-50 translate-x-8 -translate-y-8" />
+      <div className="relative">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-lg bg-phantom-accentBg border border-phantom-border flex items-center justify-center">
+            <GraduationCap className="w-5 h-5 text-phantom-text" />
+          </div>
+          <div>
+            <h2 className="text-card-title text-phantom-text">Missed a Lecture?</h2>
+            <p className="text-caption text-phantom-textMuted">Enter the topic and get the complete lecture content. No attendance needed.</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <select
+            value={courseId}
+            onChange={(e) => setCourseId(e.target.value)}
+            className={cn(
+              "h-11 px-3 rounded-lg text-body sm:w-48",
+              "bg-phantom-bgInput border border-phantom-border text-phantom-text",
+              "focus:outline-none focus:border-phantom-borderHover"
+            )}
+          >
+            <option value="">Course...</option>
+            {courses.map((c) => (
+              <option key={c.id} value={c.id}>{c.code} {c.name}</option>
+            ))}
+          </select>
+
+          <div className="flex-1 relative">
+            <input
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && courseId && topic.trim()) handleGenerate(); }}
+              placeholder="What was the lecture about? e.g. Thermodynamics: Second Law, Supply and Demand Curves..."
+              className={cn(
+                "w-full h-11 px-4 pr-12 rounded-lg text-body",
+                "bg-phantom-bgInput border border-phantom-border text-phantom-text",
+                "placeholder:text-phantom-textMuted",
+                "focus:outline-none focus:border-phantom-borderHover"
+              )}
+              disabled={generating}
+            />
+            {topic.trim() && courseId && (
+              <button
+                onClick={handleGenerate}
+                disabled={generating}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md bg-phantom-text text-phantom-bg hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {generating && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-4">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-phantom-accentBg border border-phantom-border">
+              <div className="w-5 h-5 rounded-full border-2 border-phantom-border border-t-phantom-text animate-spin shrink-0" />
+              <div>
+                <p className="text-body text-phantom-text">Generating your lecture content...</p>
+                <p className="text-caption text-phantom-textMuted">Creating summary, flashcards, and exam questions. This takes about 30 seconds.</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {error && (
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3 text-caption text-phantom-danger">{error}</motion.p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Paste Notes (secondary option)                                             */
+/* -------------------------------------------------------------------------- */
+
+function NotesInput({ courses, onSubmitted }: { courses: Course[]; onSubmitted: () => void }) {
+  const router = useRouter();
+  const [showForm, setShowForm] = useState(false);
+  const [courseId, setCourseId] = useState("");
+  const [title, setTitle] = useState("");
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!courseId || !notes.trim()) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/lectures/from-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ courseId, title: title || undefined, notes }) });
+      if (res.ok) {
+        const data = await res.json();
+        setShowForm(false); setNotes(""); setTitle(""); setCourseId("");
+        onSubmitted();
+        if (data.lecture?.id) {
+          router.push(`/lectures/${data.lecture.id}`);
+        }
+      }
+    } catch { /* */ } finally { setSubmitting(false); }
+  };
+
+  if (!showForm) {
+    return (
+      <Button variant="default" size="sm" onClick={() => setShowForm(true)} className="shrink-0">
+        <PenLine className="w-3.5 h-3.5" />
+        Paste Notes
+      </Button>
+    );
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="overflow-hidden">
+      <div className="rounded-lg border border-phantom-borderHover bg-phantom-bgCard p-4 space-y-3 mb-6">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-caption text-phantom-textMuted block mb-1">Course *</label>
+            <select value={courseId} onChange={(e) => setCourseId(e.target.value)} className={cn("w-full h-9 px-3 rounded-md text-body", "bg-phantom-bgInput border border-phantom-border text-phantom-text", "focus:outline-none")}>
+              <option value="">Select course...</option>
+              {courses.map((c) => <option key={c.id} value={c.id}>{c.code} {c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-caption text-phantom-textMuted block mb-1">Title</label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Lecture 12: Thermodynamics" />
+          </div>
+        </div>
+        <div>
+          <label className="text-caption text-phantom-textMuted block mb-1">Lecture Notes / Transcript *</label>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Paste notes from a classmate, professor slides, or any text..."
+            className={cn("w-full min-h-[150px] px-3 py-2 rounded-md text-body", "bg-phantom-bgInput border border-phantom-border text-phantom-text", "placeholder:text-phantom-textMuted resize-y", "focus:outline-none focus:border-phantom-borderHover")} />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="default" size="sm" onClick={() => setShowForm(false)}>Cancel</Button>
+          <Button variant="primary" size="sm" onClick={handleSubmit} disabled={!courseId || !notes.trim() || submitting}>
+            {submitting ? "Analyzing..." : "Analyze Notes"}
+          </Button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Lecture Row                                                                */
 /* -------------------------------------------------------------------------- */
 
@@ -94,12 +285,19 @@ function LectureRow({ lecture, index, onDelete }: { lecture: Lecture; index: num
         <Link href={`/lectures/${lecture.id}`}>
           <div className={cn("flex items-center gap-4 p-4 rounded-lg", "border border-phantom-border bg-phantom-bgCard", "hover:border-phantom-borderHover hover:bg-phantom-bgCardHover", "hover:-translate-y-px", "transition-all duration-200 cursor-pointer")}>
             <div className={cn("w-10 h-10 rounded-lg shrink-0", "bg-phantom-accentBg border border-phantom-border", "flex items-center justify-center")}>
-              <Mic className="w-4 h-4 text-phantom-textTertiary" />
+              {lecture.captureMethod === "GENERATED" ? (
+                <Zap className="w-4 h-4 text-phantom-textTertiary" />
+              ) : (
+                <Mic className="w-4 h-4 text-phantom-textTertiary" />
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="text-card-title text-phantom-text truncate">{lecture.title || "Untitled Lecture"}</h3>
                 <ProcessingStatus status={lecture.processingStatus} />
+                {lecture.captureMethod === "GENERATED" && (
+                  <Badge variant="default" className="text-[10px]">AI Generated</Badge>
+                )}
               </div>
               <div className="flex items-center gap-3 text-caption text-phantom-textTertiary">
                 <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDate(lecture.date)}</span>
@@ -165,63 +363,6 @@ function LectureListSkeleton() {
 /*  Page                                                                       */
 /* -------------------------------------------------------------------------- */
 
-function NotesInput({ courses, onSubmitted }: { courses: Course[]; onSubmitted: () => void }) {
-  const [showForm, setShowForm] = useState(false);
-  const [courseId, setCourseId] = useState("");
-  const [title, setTitle] = useState("");
-  const [notes, setNotes] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSubmit = async () => {
-    if (!courseId || !notes.trim()) return;
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/lectures/from-notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ courseId, title: title || undefined, notes }) });
-      if (res.ok) { setShowForm(false); setNotes(""); setTitle(""); setCourseId(""); onSubmitted(); }
-    } catch { /* */ } finally { setSubmitting(false); }
-  };
-
-  if (!showForm) {
-    return (
-      <Button variant="default" size="md" onClick={() => setShowForm(true)} className="shrink-0">
-        <PenLine className="w-4 h-4" />
-        Paste Notes
-      </Button>
-    );
-  }
-
-  return (
-    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="overflow-hidden">
-      <div className="rounded-lg border border-phantom-borderHover bg-phantom-bgCard p-4 space-y-3 mb-6">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-caption text-phantom-textMuted block mb-1">Course *</label>
-            <select value={courseId} onChange={(e) => setCourseId(e.target.value)} className={cn("w-full h-9 px-3 rounded-md text-body", "bg-phantom-bgInput border border-phantom-border text-phantom-text", "focus:outline-none")}>
-              <option value="">Select course...</option>
-              {courses.map((c) => <option key={c.id} value={c.id}>{c.code} {c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-caption text-phantom-textMuted block mb-1">Title</label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Lecture 12: Thermodynamics" />
-          </div>
-        </div>
-        <div>
-          <label className="text-caption text-phantom-textMuted block mb-1">Lecture Notes / Transcript *</label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Paste your lecture notes, transcript, or any text from the lecture here. The AI will analyze it, create a summary, flashcards, and exam questions..."
-            className={cn("w-full min-h-[150px] px-3 py-2 rounded-md text-body", "bg-phantom-bgInput border border-phantom-border text-phantom-text", "placeholder:text-phantom-textMuted resize-y", "focus:outline-none focus:border-phantom-borderHover")} />
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="default" size="sm" onClick={() => setShowForm(false)}>Cancel</Button>
-          <Button variant="primary" size="sm" onClick={handleSubmit} disabled={!courseId || !notes.trim() || submitting}>
-            {submitting ? "Analyzing..." : "Analyze Notes"}
-          </Button>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
 export default function LecturesPage() {
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -273,25 +414,23 @@ export default function LecturesPage() {
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-page-title text-phantom-text mb-1">
             Lecture Ghost
           </h1>
           <p className="text-body text-phantom-textSecondary">
-            AI-captured lectures with transcripts, summaries, and study materials.
+            Because showing up is optional. Get complete lecture content without attending.
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <NotesInput courses={courses} onSubmitted={fetchLectures} />
-          <Button variant="primary" size="md" onClick={() => setShowUpload(true)} className="shrink-0">
-            <Upload className="w-4 h-4" />
-            Upload Audio
-          </Button>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Main Feature: Generate from Topic */}
+      <div className="mb-6">
+        <GenerateFromTopic courses={courses} onGenerated={fetchLectures} />
+      </div>
+
+      {/* Secondary options bar */}
       <div className="flex items-center gap-3 mb-6">
         {/* Search */}
         <div className="relative flex-1 max-w-sm">
@@ -371,6 +510,14 @@ export default function LecturesPage() {
             )}
           </AnimatePresence>
         </div>
+
+        <div className="flex items-center gap-2">
+          <NotesInput courses={courses} onSubmitted={fetchLectures} />
+          <Button variant="default" size="sm" onClick={() => setShowUpload(true)} className="shrink-0">
+            <Upload className="w-3.5 h-3.5" />
+            Upload Audio
+          </Button>
+        </div>
       </div>
 
       {/* Lecture Count */}
@@ -395,26 +542,16 @@ export default function LecturesPage() {
           )}
         >
           <div className="w-12 h-12 rounded-full bg-phantom-accentBg flex items-center justify-center mb-4">
-            <Mic className="w-5 h-5 text-phantom-textMuted" />
+            <GraduationCap className="w-5 h-5 text-phantom-textMuted" />
           </div>
           <p className="text-body text-phantom-textSecondary mb-1">
-            No lectures found
+            No lectures yet
           </p>
           <p className="text-caption text-phantom-textMuted mb-4">
             {searchQuery || selectedCourse !== "all"
               ? "Try adjusting your filters"
-              : "Upload a recording to get started"}
+              : "Enter a topic above to generate your first lecture"}
           </p>
-          {!searchQuery && selectedCourse === "all" && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setShowUpload(true)}
-            >
-              <Upload className="w-3.5 h-3.5" />
-              Upload Lecture
-            </Button>
-          )}
         </motion.div>
       ) : (
         <div className="space-y-2">

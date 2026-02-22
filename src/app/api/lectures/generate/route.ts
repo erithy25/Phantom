@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { generateLectureSummary } from "@/lib/ai";
+import { generateLectureFromTopic } from "@/lib/ai";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   try {
@@ -14,13 +14,13 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { courseId, title, notes } = body;
+    const { courseId, topic, title } = body;
 
     if (!courseId) {
       return NextResponse.json({ error: "Course ID is required." }, { status: 400 });
     }
-    if (!notes?.trim()) {
-      return NextResponse.json({ error: "Notes content is required." }, { status: 400 });
+    if (!topic?.trim()) {
+      return NextResponse.json({ error: "Topic is required." }, { status: 400 });
     }
 
     const course = await db.course.findFirst({
@@ -31,21 +31,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Course not found." }, { status: 404 });
     }
 
-    // Create lecture record
+    // Create lecture record immediately
     const lecture = await db.lecture.create({
       data: {
         courseId,
         userId: session.user.id,
-        title: title || `Notes ${new Date().toLocaleDateString()}`,
-        captureMethod: "TEXT",
+        title: title || topic,
+        captureMethod: "GENERATED",
         processingStatus: "PROCESSING",
-        transcript: notes,
+        transcript: `[Generated from topic: ${topic}]`,
       },
     });
 
-    // Process with AI
+    // Generate full lecture content from the topic
     try {
-      const analysis = await generateLectureSummary(notes, course.name);
+      const analysis = await generateLectureFromTopic(
+        topic,
+        course.name,
+        course.code,
+        course.professorName,
+        course.syllabusText
+      );
 
       // Store rich data in topics JSON field
       const topicsData = {
@@ -54,7 +60,6 @@ export async function POST(request: Request) {
         conceptsExplained: analysis.conceptsExplained || [],
       };
 
-      // Update lecture with analysis results
       await db.lecture.update({
         where: { id: lecture.id },
         data: {
@@ -99,19 +104,18 @@ export async function POST(request: Request) {
         examQuestionCount: analysis.examQuestions?.length || 0,
       }, { status: 201 });
     } catch (aiError) {
-      // Mark as failed if AI processing fails
       await db.lecture.update({
         where: { id: lecture.id },
         data: { processingStatus: "FAILED" },
       });
-      console.error("AI analysis error:", aiError);
+      console.error("AI lecture generation error:", aiError);
       return NextResponse.json({
         lecture: { id: lecture.id, title: lecture.title, processingStatus: "FAILED" },
-        error: "AI analysis failed but notes were saved.",
+        error: "AI generation failed. Please try again.",
       }, { status: 201 });
     }
   } catch (error) {
-    console.error("Create lecture from notes error:", error);
-    return NextResponse.json({ error: "Failed to process notes." }, { status: 500 });
+    console.error("Generate lecture error:", error);
+    return NextResponse.json({ error: "Failed to generate lecture." }, { status: 500 });
   }
 }

@@ -165,46 +165,138 @@ export async function generateLectureSummary(
 ): Promise<{
   summary: string;
   topics: string[];
+  keyTakeaways: string[];
+  conceptsExplained: Array<{ concept: string; explanation: string }>;
   flashcards: Array<{ question: string; answer: string }>;
   examQuestions: Array<{ question: string; answer: string; topic: string }>;
 }> {
   const response = await getOpenAIClient().chat.completions.create({
     model: AI_MODEL,
-    max_tokens: 8192,
+    max_tokens: 16384,
     temperature: 0.8,
     frequency_penalty: 0.3,
     presence_penalty: 0.15,
     messages: [
       {
         role: "system",
-        content: `You turn lecture transcripts into study materials. Write everything like a student would write it for themselves,not like a textbook, not like an AI summary.
+        content: `You are helping a student who MISSED this lecture catch up completely. Your goal: after reading your output, they should know everything they would have learned if they sat in the lecture hall. Write everything like a student would write it for themselves,not like a textbook, not like an AI summary.
 
 Always respond in valid JSON with this exact structure:
 {
-  "summary": "A 500-800 word summary. Write it like you're explaining the lecture to a friend who missed class. Use natural language, vary your sentence lengths, throw in the occasional casual phrasing. Organize by topic but in paragraph form with line breaks between sections. No bullet points, no asterisks, no markdown, no dashes of any kind.",
-  "topics": ["topic1", "topic2"],
+  "summary": "A 1000 to 2000 word comprehensive recap of the entire lecture. Write it like you're sitting down with a friend and walking them through everything that happened in class today. Cover every topic in detail, explain the reasoning behind concepts, include any examples or analogies the professor might have used. Organize by topic in paragraph form with line breaks (\\n\\n) between sections. Start each section with the topic in bold like **Topic Name** then explain it thoroughly. No bullet points, no asterisks besides section headers, no dashes of any kind. This should be so thorough that reading it is genuinely better than attending because you explain things more clearly.",
+  "topics": ["topic1", "topic2", "topic3"],
+  "keyTakeaways": ["The single most important thing from this lecture is...", "Another critical point to remember is...", "For the exam, make sure you know..."],
+  "conceptsExplained": [{"concept": "Concept Name", "explanation": "A clear, thorough explanation of this concept in 100 to 200 words. Use examples. Explain it like you're tutoring someone, not reading from a textbook. Make it click."}],
   "flashcards": [{"question": "...", "answer": "..."}],
   "examQuestions": [{"question": "...", "answer": "...", "topic": "..."}]
 }
 
-For flashcards: Write 20-50 cards. Questions should be specific. Answers should be concise but sound like a student wrote them from memory, not copied from a textbook.
-For exam questions: Write 5-10 questions the professor would likely ask based on what they emphasized. Answers should be thorough but written naturally,like a strong student's exam response, not a Wikipedia article.
+For keyTakeaways: Write 5 to 10 takeaways. These are the things the student absolutely needs to know. Be specific and reference actual content from the lecture.
+For conceptsExplained: Write a detailed explanation for every major concept covered. Each explanation should be 100 to 200 words. Use examples and analogies. Make complex things simple.
+For flashcards: Write 25 to 50 cards covering all testable facts, definitions, and concepts. Questions should be specific. Answers should be concise but sound like a student wrote them from memory.
+For examQuestions: Write 10 to 15 questions the professor would likely ask. Mix short answer and longer response questions. Answers should be thorough and exam ready,like a strong student's response.
 ${HUMAN_WRITING_RULES}`,
       },
       {
         role: "user",
-        content: `Here's the transcript from ${courseName}. Break it down for me:\n\n${transcript}`,
+        content: `Here's everything from today's ${courseName} lecture. I couldn't make it, so I need the full breakdown:\n\n${transcript}`,
       },
     ],
   });
 
   const text = response.choices[0]?.message?.content || "{}";
   try {
-    return JSON.parse(text);
+    const parsed = JSON.parse(text);
+    return {
+      summary: parsed.summary || "",
+      topics: parsed.topics || [],
+      keyTakeaways: parsed.keyTakeaways || [],
+      conceptsExplained: parsed.conceptsExplained || [],
+      flashcards: parsed.flashcards || [],
+      examQuestions: parsed.examQuestions || [],
+    };
   } catch {
     return {
       summary: text,
       topics: [],
+      keyTakeaways: [],
+      conceptsExplained: [],
+      flashcards: [],
+      examQuestions: [],
+    };
+  }
+}
+
+export async function generateLectureFromTopic(
+  topic: string,
+  courseName: string,
+  courseCode: string,
+  professorName?: string | null,
+  syllabusContext?: string | null
+): Promise<{
+  summary: string;
+  topics: string[];
+  keyTakeaways: string[];
+  conceptsExplained: Array<{ concept: string; explanation: string }>;
+  flashcards: Array<{ question: string; answer: string }>;
+  examQuestions: Array<{ question: string; answer: string; topic: string }>;
+}> {
+  const profInfo = professorName ? `Professor: ${professorName}.` : "";
+  const syllabusInfo = syllabusContext ? `Course syllabus context:\n${syllabusContext}\n\n` : "";
+
+  const response = await getOpenAIClient().chat.completions.create({
+    model: AI_MODEL,
+    max_tokens: 16384,
+    temperature: 0.8,
+    frequency_penalty: 0.3,
+    presence_penalty: 0.15,
+    messages: [
+      {
+        role: "system",
+        content: `You are a university level expert creating complete lecture content for a student who is NOT attending class. The student's course is ${courseName} (${courseCode}). ${profInfo}
+
+${syllabusInfo}Your job: create everything this student needs to know about the given topic as if they sat through a full 90 minute university lecture on it. Be thorough. Be detailed. Cover the topic at university level depth. This is their ONLY source of information for this lecture, so nothing can be left out.
+
+Always respond in valid JSON with this exact structure:
+{
+  "summary": "A 1500 to 2500 word comprehensive lecture covering this topic at university level. Write it like a really good tutor explaining everything from scratch. Start with the foundations, build up to the complex parts. Use concrete examples and analogies. Organize by subtopic in paragraph form with line breaks (\\n\\n) between sections. Start each section with the subtopic in bold like **Subtopic Name** then explain it thoroughly. Include formulas, definitions, key relationships, historical context where relevant. No bullet points, no asterisks besides section headers, no dashes of any kind. This should be BETTER than attending the actual lecture because it's clearer, more structured, and you can re read it.",
+  "topics": ["subtopic1", "subtopic2", "subtopic3"],
+  "keyTakeaways": ["The most important thing to understand here is...", "Make sure you can explain..."],
+  "conceptsExplained": [{"concept": "Concept Name", "explanation": "A detailed 150 to 250 word explanation with examples and analogies. Make it click for someone seeing this for the first time."}],
+  "flashcards": [{"question": "...", "answer": "..."}],
+  "examQuestions": [{"question": "...", "answer": "...", "topic": "..."}]
+}
+
+For keyTakeaways: Write 5 to 10 specific takeaways. Things that will definitely show up on the exam.
+For conceptsExplained: Cover EVERY important concept within this topic. Each gets 150 to 250 words. Use examples, analogies, and step by step reasoning where needed.
+For flashcards: Write 30 to 60 cards. Cover every definition, formula, relationship, and key fact. Be exam focused.
+For examQuestions: Write 10 to 15 questions at university exam level. Mix types: definitions, explanations, calculations, comparisons, applications. Answers should be thorough enough to get full marks.
+${HUMAN_WRITING_RULES}`,
+      },
+      {
+        role: "user",
+        content: `I missed today's lecture on: ${topic}\n\nGive me everything I need to know. Full lecture content, like I was there but better.`,
+      },
+    ],
+  });
+
+  const text = response.choices[0]?.message?.content || "{}";
+  try {
+    const parsed = JSON.parse(text);
+    return {
+      summary: parsed.summary || "",
+      topics: parsed.topics || [],
+      keyTakeaways: parsed.keyTakeaways || [],
+      conceptsExplained: parsed.conceptsExplained || [],
+      flashcards: parsed.flashcards || [],
+      examQuestions: parsed.examQuestions || [],
+    };
+  } catch {
+    return {
+      summary: text,
+      topics: [],
+      keyTakeaways: [],
+      conceptsExplained: [],
       flashcards: [],
       examQuestions: [],
     };
